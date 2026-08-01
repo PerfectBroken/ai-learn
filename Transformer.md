@@ -28,7 +28,9 @@
 ![img_transformer_embedding.png](img_transformer_embedding.png)
 
 ### 3.2. QKV矩阵
-用三个独立的Linear矩阵（W_Q、W_K、W_V）对每个token的embedding做投影，得到Query、Key、Value三组向量。
+用三个独立的Linear矩阵（W_Q、W_K、W_V）对每个token的embedding做投影，得到Query、Key、Value三组向量。通过以下公式计算即可得到该token在此上下文含义当中的Value矩阵：
+![img_transformer_qkv_formula.png](img_transformer_qkv_formula.png)
+
 有个很经典的例子是token: 苹果，他的含义即有水果的意思，也有手机、公司的意思。下面我们来看下QKV矩阵如何匹配到这个词背后的含义。
 先看两个句子：
 - 句子A："我买了一个新鲜的苹果，很甜。"（水果义）
@@ -49,11 +51,30 @@
 #### 4. 匹配分数经Softmax归一化成权重后，"苹果"会按这个权重去加权聚合每个token的Value，最终取到平均值，得到的这个平均值就代表的苹果水果的含义，或者苹果品牌的含义。
 ![img_transformer_qkv_value_sum.png](img_transformer_qkv_value_sum.png)
 
-### **自注意力计算**：Q与所有K做点积得到打分，除以√d_k缩放后经Softmax归一化成注意力权重，再对V做加权求和，得到每个token"融合上下文信息"后的新表示。
-### **多头机制**：把上一步拆成h个头并行计算（每个头有自己独立的W_Q/W_K/W_V子矩阵，投影到更低维子空间），让不同头分别关注不同类型的关系；h个头的输出拼接后，经一次Linear（W_O）压回d_model维——**多头到这里就已经合并完毕**。
-### **合并多头后的FFN**：合并后的向量经残差连接+LayerNorm，送入该层的FFN（两层Linear+非线性激活，先升维再降维）。FFN是position-wise的：同一层内所有token位置共享同一套FFN参数，但**不同层之间的FFN参数各自独立、不共享**——这是模型参数量与"记忆"的主要载体。
-### **多层机制**："多头注意力（含合并）+ FFN"构成一个block，重复N次。层与层之间是**串行接力**：前一层输出直接作为下一层输入，不存在"多层结果最后汇总"，每层的注意力和FFN都用各自独立参数，逐层把表示提炼得更抽象。
-### **最终Linear + Softmax**：堆叠完N层后，取最后一层的输出，经过整个模型**唯一一次**的LM head Linear，把d_model维投影到vocab_size维得到logits，再经**唯一一次**Softmax转成概率分布，最后采样/argmax选出新token。
+> 延伸阅读：同一句话里出现两次同一个token（比如两次"苹果"分别指水果和公司）要怎么区分？见 [TransformerReplenish.md](TransformerReplenish.md)。
+
+### 多头机制：
+把上一步拆成h个头并行计算（每个头有自己独立的W_Q/W_K/W_V子矩阵，投影到更低维子空间），让不同头分别关注不同类型的关系；h个头的输出拼接后，经一次Linear（W_O）压回d_model维—. 
+
+注意头的拆分并不是token对应向量个数的拆分，而是每个token向量维度的拆分。
+我们举例kimi K3模型，token输入个数是1M，d_model= 7168，拆成96个头
+多头拆分后，qkv矩阵的个数还是1M，知识每个矩阵的维度从7168下降到了128（各头之间少部分重叠）
+deepseek的设计思路还有所不同，只拆分了Query矩阵，KV矩阵未做拆分多头。
+![img_multihead_real_models.png](img_multihead_real_models.png)
+
+### FFN：
+合并后的向量经残差连接+LayerNorm，送入该层的FFN（两层Linear+非线性激活，先升维再降维）。
+FFN是position-wise的：同一层内所有token位置共享同一套FFN参数，但**不同层之间的FFN参数各自独立、不共享**——这是模型参数量与"记忆"的主要载体。
+![img_transformer_ffn_memory.png](img_transformer_ffn_memory.png)
+
+### 多层机制：
+多头注意力（含合并）+ FFN"构成一个block，重复N次。
+
+层与层之间是**串行接力**：前一层输出直接作为下一层输入，不存在"多层结果最后汇总"，每层的注意力和FFN都用各自独立参数，逐层把表示提炼得更抽象。
+
+
+### 最终Linear + Softmax：
+堆叠完N层后，取最后一层的输出，经过整个模型**唯一一次**的LM head Linear，把d_model维投影到vocab_size维得到logits，再经**唯一一次**Softmax转成概率分布，最后采样/argmax选出新token。
 
 ## 4 五大厂商大模型对比（2026年7月）
 
