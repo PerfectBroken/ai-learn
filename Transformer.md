@@ -1,6 +1,40 @@
-![img.png](img.png)
+## 目录
+- [1 Transformer-整体架构](#1-transformer-整体架构)
+- [2 时间维度：Prefill 与 Decode](#2-时间维度prefill-与-decode)
+- [3 单次前向流程：从Embedding到输出Token](#3-单次前向流程从embedding到输出token)
+  - [3.1 Embedding](#31-embedding)
+- [4 五大厂商大模型对比（2026年7月）](#4-五大厂商大模型对比2026年7月)
 
-## 五大厂商大模型对比（2026年7月）
+## 1 Transformer-整体架构
+![img_transformer.png](img_transformer.png)
+
+## 2 时间维度：Prefill 与 Decode
+
+一次推理请求会经历两个特征完全不同的阶段：
+
+| 维度 | Prefill（预填充） | Decode（解码）                                                                                             |
+|---|---|------------------------------------------------------------------------------------------------------------|
+| 处理对象 | 一次性处理完整输入context的所有token（system prompt、工具定义、历史对话、检索结果等都算在内，不只是用户单轮prompt） | 每次只生成1个新token，自回归、逐个进行                                                                     |
+| 计算特征 | **计算密集型**：对整个context做大矩阵乘法（QKV投影、注意力、FFN），并行度高，GPU算力利用率高 | **存储密集型**：每步计算量很小（只算1个token），但要反复读写不断增长的KV Cache，瓶颈在显存带宽而非算力     |
+| 关键产物 | 生成并缓存每个context token的K、V（即KV Cache），供后续decode复用 | 每步新增1个token的K、V追加进KV Cache；用当前token的Q查询全部历史K、V                                       |
+| 延迟表现 | 首token延迟(TTFT)主要由prefill决定，**是输入context的总长度决定耗时** | 每个输出的token延迟主要由KV矩阵大小决定，输入context总长度决定KV矩阵大小，输入context越长单个token耗时越高 |
+
+## 3 单次前向流程：从Embedding到输出Token
+
+### 3.1 Embedding
+把输入token映射成 d_model 维向量，叠加位置编码（如RoPE），得到每个token的初始表示。
+映射成向量后同义词的token向量很相近，模型无需再关注所有语言的所有文字，而是只关心向量内部的具体含义。
+需要注意的是，能把同义词映射为相近的向量是由与训练完成的，未经过预训练的向量函数无法完成这个功能。
+![img_transformer_embedding.png](img_transformer_embedding.png)
+
+2. **计算QKV矩阵**：用三个独立的Linear矩阵（W_Q、W_K、W_V）对每个token的embedding做投影，得到Query、Key、Value三组向量。
+3. **自注意力计算**：Q与所有K做点积得到打分，除以√d_k缩放后经Softmax归一化成注意力权重，再对V做加权求和，得到每个token"融合上下文信息"后的新表示。
+4. **多头机制**：把上一步拆成h个头并行计算（每个头有自己独立的W_Q/W_K/W_V子矩阵，投影到更低维子空间），让不同头分别关注不同类型的关系；h个头的输出拼接后，经一次Linear（W_O）压回d_model维——**多头到这里就已经合并完毕**。
+5. **合并多头后的FFN**：合并后的向量经残差连接+LayerNorm，送入该层的FFN（两层Linear+非线性激活，先升维再降维）。FFN是position-wise的：同一层内所有token位置共享同一套FFN参数，但**不同层之间的FFN参数各自独立、不共享**——这是模型参数量与"记忆"的主要载体。
+6. **多层机制**："多头注意力（含合并）+ FFN"构成一个block，重复N次。层与层之间是**串行接力**：前一层输出直接作为下一层输入，不存在"多层结果最后汇总"，每层的注意力和FFN都用各自独立参数，逐层把表示提炼得更抽象。
+7. **最终Linear + Softmax**：堆叠完N层后，取最后一层的输出，经过整个模型**唯一一次**的LM head Linear，把d_model维投影到vocab_size维得到logits，再经**唯一一次**Softmax转成概率分布，最后采样/argmax选出新token。
+
+## 4 五大厂商大模型对比（2026年7月）
 
 对比国内 DeepSeek、智谱(GLM)、月之暗面(Kimi)，以及 OpenAI、Anthropic(Claude) 共5家的顶尖款与常用款模型。
 
