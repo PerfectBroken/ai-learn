@@ -3,6 +3,12 @@
 - [2 时间维度：Prefill 与 Decode](#2-时间维度prefill-与-decode)
 - [3 单次前向流程：从Embedding到输出Token](#3-单次前向流程从embedding到输出token)
   - [3.1 Embedding](#31-embedding)
+  - [3.2 QKV矩阵](#32-qkv矩阵)
+  - [3.3 Transformer如何实现的KV Cache](#33-transformer如何实现的kv-cache)
+  - [3.4 多头机制](#34-多头机制)
+  - [3.5 FFN](#35-ffn)
+  - [3.6 多层机制](#36-多层机制)
+  - [3.7 最终Linear + Softmax](#37-最终linear--softmax)
 - [4 五大厂商大模型对比（2026年7月）](#4-五大厂商大模型对比2026年7月)
 
 ## 1 Transformer-整体架构
@@ -53,7 +59,7 @@
 
 > 延伸阅读：同一句话里出现两次同一个token（比如两次"苹果"分别指水果和公司）要怎么区分？见 [TransformerReplenish.md](TransformerReplenish.md)。
 
-### Transformer如何实现的KV Cache
+### 3.3 Transformer如何实现的KV Cache
 第一层：Causal Masking（因果掩码）——不是为缓存设计的，但是缓存能成立的前提
 
 我们之前讲自注意力时提到过"Q和所有K做点积"，但没细讲一个关键限制：decoder-only的Transformer（GPT、Claude、DeepSeek这类生成式模型）在做注意力时，会用一个"因果掩码"强制第i个token只能看第1到第i个token，绝对不能看到它后面的token。
@@ -63,7 +69,7 @@
 所以严格说，这不是"为了缓存"专门做的优化，而是自回归生成本身的设计（因果掩码），恰好顺带让缓存变得可能。
 ![img_transformer_kv_caching.png](img_transformer_kv_caching.png)
 
-### 多头机制：
+### 3.4 多头机制：
 把上一步拆成h个头并行计算（每个头有自己独立的W_Q/W_K/W_V子矩阵，投影到更低维子空间），让不同头分别关注不同类型的关系；h个头的输出拼接后，经一次Linear（W_O）压回d_model维—. 
 
 注意头的拆分并不是token对应向量个数的拆分，而是每个token向量维度的拆分。
@@ -72,18 +78,18 @@
 deepseek的设计思路还有所不同，只拆分了Query矩阵，KV矩阵未做拆分多头。
 ![img_multihead_real_models.png](img_multihead_real_models.png)
 
-### FFN：
+### 3.5 FFN：
 合并后的向量经残差连接+LayerNorm，送入该层的FFN（两层Linear+非线性激活，先升维再降维）。
 FFN是position-wise的：同一层内所有token位置共享同一套FFN参数，但**不同层之间的FFN参数各自独立、不共享**——这是模型参数量与"记忆"的主要载体。
 ![img_transformer_ffn_memory.png](img_transformer_ffn_memory.png)
 
-### 多层机制：
+### 3.6 多层机制：
 多头注意力（含合并）+ FFN"构成一个block，重复N次。
 
 层与层之间是**串行接力**：前一层输出直接作为下一层输入，不存在"多层结果最后汇总"，每层的注意力和FFN都用各自独立参数，逐层把表示提炼得更抽象。
 
 
-### 最终Linear + Softmax：
+### 3.7 最终Linear + Softmax：
 堆叠完N层后，取最后一层的输出，经过整个模型**唯一一次**的LM head Linear，把d_model维投影到vocab_size维得到logits，再经**唯一一次**Softmax转成概率分布，最后采样/argmax选出新token。
 
 ## 4 五大厂商大模型对比（2026年7月）
