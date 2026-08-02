@@ -53,6 +53,16 @@
 
 > 延伸阅读：同一句话里出现两次同一个token（比如两次"苹果"分别指水果和公司）要怎么区分？见 [TransformerReplenish.md](TransformerReplenish.md)。
 
+### Transformer如何实现的KV Cache
+第一层：Causal Masking（因果掩码）——不是为缓存设计的，但是缓存能成立的前提
+
+我们之前讲自注意力时提到过"Q和所有K做点积"，但没细讲一个关键限制：decoder-only的Transformer（GPT、Claude、DeepSeek这类生成式模型）在做注意力时，会用一个"因果掩码"强制第i个token只能看第1到第i个token，绝对不能看到它后面的token。
+这个设计原本是为了保证"自回归生成"本身逻辑自洽（生成第i个词的时候，当然不能偷看还没生成的第i+1个词）——但它带来一个意外但至关重要的副作用：一个token的K、V，永远只取决于它自己和它前面的token，跟它后面接了什么完全无关。
+这意味着：如果两次请求的前N个token完全一样，不管这两次请求后面各自接了什么不同的内容，这前N个token算出来的K、V在数学上必然完全相同——这才是Prompt Caching能够成立的根本前提。
+如果Transformer是双向的（比如BERT那种，每个token能看到整句话所有token），前缀的K、V就会随着后面接的内容不同而变化，"缓存前缀复用"这件事根本无从谈起。
+所以严格说，这不是"为了缓存"专门做的优化，而是自回归生成本身的设计（因果掩码），恰好顺带让缓存变得可能。
+![img_transformer_kv_caching.png](img_transformer_kv_caching.png)
+
 ### 多头机制：
 把上一步拆成h个头并行计算（每个头有自己独立的W_Q/W_K/W_V子矩阵，投影到更低维子空间），让不同头分别关注不同类型的关系；h个头的输出拼接后，经一次Linear（W_O）压回d_model维—. 
 
