@@ -3,12 +3,13 @@
 - [2 时间维度：Prefill 与 Decode](#2-时间维度prefill-与-decode)
 - [3 单次前向流程：从Embedding到输出Token](#3-单次前向流程从embedding到输出token)
   - [3.1 Embedding](#31-embedding)
-  - [3.2 QKV矩阵](#32-qkv矩阵)
-  - [3.3 Transformer如何实现的KV Cache](#33-transformer如何实现的kv-cache)
-  - [3.4 多头机制](#34-多头机制)
-  - [3.5 FFN](#35-ffn)
-  - [3.6 多层机制](#36-多层机制)
-  - [3.7 最终Linear + Softmax](#37-最终linear--softmax)
+  - [3.2 位置编码](#32-位置编码)
+  - [3.3 QKV矩阵](#33-qkv矩阵)
+  - [3.4 Transformer如何实现的KV Cache](#34-transformer如何实现的kv-cache)
+  - [3.5 多头机制](#35-多头机制)
+  - [3.6 FFN](#36-ffn)
+  - [3.7 多层机制](#37-多层机制)
+  - [3.8 最终Linear + Softmax](#38-最终linear--softmax)
 - [4 五大厂商大模型对比（2026年7月）](#4-五大厂商大模型对比2026年7月)
 
 ## 1 Transformer-整体架构
@@ -33,7 +34,31 @@
 需要注意的是，能把同义词映射为相近的向量是由与训练完成的，未经过预训练的向量函数无法完成这个功能。
 ![img_transformer_embedding.png](img_transformer_embedding.png)
 
-### 3.2. QKV矩阵
+### 3.2 位置编码
+
+#### 为什么需要位置编码：Self-Attention本身"不看顺序"
+
+Self-Attention机制本身是**置换不变**的——它只关心"这句话里出现了哪些token"，不关心"谁在前谁在后"。一个不需要Q/K概念就能看懂的例子："狗咬人"和"人咬狗"这两句话，如果不看顺序、只看"用到了哪些字"，两句话是完全一样的一堆token，如果没有位置信息，self-attention没有任何办法区分这两句话——含义却完全相反。
+
+所以必须给每个token的表示叠加位置信息，让"内容相同、顺序不同"的句子在送进QKV投影之前就已经不一样了。这也是[3.1节Embedding](#31-embedding)里提到"叠加位置编码"这句话的原因：真正送进QKV矩阵计算的，不是纯粹的embedding，是embedding+位置编码的结果。位置编码具体怎么帮模型区分"同一个token在不同位置"这件事（比如同一句话里出现两次"苹果"），见[TransformerReplenish.md](TransformerReplenish.md)。
+
+#### RoPE：把位置变成旋转角度
+
+目前主流模型（GPT、Claude、DeepSeek这类）用的位置编码方案是**RoPE**（Rotary Position Embedding，旋转位置编码）。核心不是一个比喻，是真实的计算步骤：把Q、K向量切成一对对二维子向量，每一对乘上一个固定频率θ，用"位置×θ"当旋转角度，把这对子向量在二维平面里转一下。
+
+之所以要设计成这样，是因为这样做之后有一个数学上的回报——两个转过的向量做点积（也就是attention打分），结果只取决于两者位置的差值(n-m)θ，跟各自的绝对位置无关：
+
+![img_rope_angle_intuition.png](img_rope_angle_intuition.png)
+
+上图右边两个面板做了一次可以自己验证的对比：面板②里Q在位置3、K在位置7（相对距离4），转完之后点积算出来是-0.4161；面板③把绝对位置整体平移到103和107（相对距离还是4），点积依然是-0.4161，分毫不差。这就是RoPE要的效果：**模型学到的不是"这个词在第几个字"，而是"这个词跟另一个词隔了多远"**。
+
+换成一个真实例子看看是什么样子——句子"今天天气不错。"，用DeepSeek-V4-Pro官方tokenizer切出的4个真实token（今天/天气/不错/。，位置0~3），放到d=0这个真实维度上（真实RoPE参数b=10000, D=64，θ_0=b^0=1.0，精确值不是近似）：
+
+![img_rope_real_example.png](img_rope_real_example.png)
+
+左边能看到4个真实token各自转到的真实角度；右边挑了"今天"(pos=0)当Query、"不错"(pos=2)当Key，真实夹角=2.0rad，真实点积=-0.4161。RoPE不同维度的转速（频率θ）天差地别——这套"多个维度、不同转速一起编码位置"的机制，也是后面理解**Context Window上限从哪来**（[context-window/ContextWindow.md](../context-window/ContextWindow.md)）的基础：模型训练时能覆盖的位置范围，本质上就是这些旋转维度"见过的角度范围"。
+
+### 3.3 QKV矩阵
 用三个独立的Linear矩阵（W_Q、W_K、W_V）对每个token的embedding做投影，得到Query、Key、Value三组向量。通过以下公式计算即可得到该token在此上下文含义当中的Value矩阵：
 ![img_transformer_qkv_formula.png](img_transformer_qkv_formula.png)
 
@@ -59,7 +84,7 @@
 
 > 延伸阅读：同一句话里出现两次同一个token（比如两次"苹果"分别指水果和公司）要怎么区分？见 [TransformerReplenish.md](TransformerReplenish.md)。
 
-### 3.3 Transformer如何实现的KV Cache
+### 3.4 Transformer如何实现的KV Cache
 第一层：Causal Masking（因果掩码）——不是为缓存设计的，但是缓存能成立的前提
 
 我们之前讲自注意力时提到过"Q和所有K做点积"，但没细讲一个关键限制：decoder-only的Transformer（GPT、Claude、DeepSeek这类生成式模型）在做注意力时，会用一个"因果掩码"强制第i个token只能看第1到第i个token，绝对不能看到它后面的token。
@@ -69,7 +94,7 @@
 所以严格说，这不是"为了缓存"专门做的优化，而是自回归生成本身的设计（因果掩码），恰好顺带让缓存变得可能。
 ![img_transformer_kv_caching.png](img_transformer_kv_caching.png)
 
-### 3.4 多头机制：
+### 3.5 多头机制：
 把上一步拆成h个头并行计算（每个头有自己独立的W_Q/W_K/W_V子矩阵，投影到更低维子空间），让不同头分别关注不同类型的关系；h个头的输出拼接后，经一次Linear（W_O）压回d_model维—. 
 
 注意头的拆分并不是token对应向量个数的拆分，而是每个token向量维度的拆分。
@@ -78,18 +103,18 @@
 deepseek的设计思路还有所不同，只拆分了Query矩阵，KV矩阵未做拆分多头。
 ![img_multihead_real_models.png](img_multihead_real_models.png)
 
-### 3.5 FFN：
+### 3.6 FFN：
 合并后的向量经残差连接+LayerNorm，送入该层的FFN（两层Linear+非线性激活，先升维再降维）。
 FFN是position-wise的：同一层内所有token位置共享同一套FFN参数，但**不同层之间的FFN参数各自独立、不共享**——这是模型参数量与"记忆"的主要载体。
 ![img_transformer_ffn_memory.png](img_transformer_ffn_memory.png)
 
-### 3.6 多层机制：
+### 3.7 多层机制：
 多头注意力（含合并）+ FFN"构成一个block，重复N次。
 
 层与层之间是**串行接力**：前一层输出直接作为下一层输入，不存在"多层结果最后汇总"，每层的注意力和FFN都用各自独立参数，逐层把表示提炼得更抽象。
 
 
-### 3.7 最终Linear + Softmax：
+### 3.8 最终Linear + Softmax：
 堆叠完N层后，取最后一层的输出，经过整个模型**唯一一次**的LM head Linear，把d_model维投影到vocab_size维得到logits，再经**唯一一次**Softmax转成概率分布，最后采样/argmax选出新token。
 
 ## 4 五大厂商大模型对比（2026年7月）
