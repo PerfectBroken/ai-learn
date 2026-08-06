@@ -58,6 +58,8 @@ Self-Attention机制本身是**置换不变**的——它只关心"这句话里�
 
 左边能看到4个真实token各自转到的真实角度；右边挑了"今天"(pos=0)当Query、"不错"(pos=2)当Key，真实夹角=2.0rad，真实点积=-0.4161。RoPE不同维度的转速（频率θ）天差地别——这套"多个维度、不同转速一起编码位置"的机制，也是后面理解**Context Window上限从哪来**（[context-window/ContextWindow.md](../context-window/ContextWindow.md)）的基础：模型训练时能覆盖的位置范围，本质上就是这些旋转维度"见过的角度范围"。
 
+> 延伸阅读：Q、K到底是"先各自旋转成向量、再做点积"，还是"先算出相对角度、再构造向量"？这个计算顺序容易搞反，[RoPE_ComputeOrder.md](RoPE_ComputeOrder.md)用数学证明+数值验证+真实开源代码（HuggingFace transformers）三层证据说清楚了真实顺序。
+
 ### 3.3 QKV矩阵
 用三个独立的Linear矩阵（W_Q、W_K、W_V）对每个token的embedding做投影，得到Query、Key、Value三组向量。通过以下公式计算即可得到该token在此上下文含义当中的Value矩阵：
 ![img_transformer_qkv_formula.png](img_transformer_qkv_formula.png)
