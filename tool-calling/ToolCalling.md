@@ -204,16 +204,12 @@ OpenAI在**2023年6月13日**的官方博客里正式在API里加入了这个能
 
 **有掩码**：语法状态机在这一步已经算出"只有`<｜tool▁call▁begin｜>`合法"，把其余候选的logit全部改成`-∞`，不管原始得分怎么排，最终只能采样到这一个——不是"更倾向于选它"，是其余选项概率恒为0，选不到。
 
-去查了vLLM的开源实现：`StructuredOutputsParams`这个类、`structural_tag`字段、底层调用`xgrammar`这个语法约束库做校验；我们之前深挖DeepSeek的tool parser源码时见过的`structural_tag_model = "deepseek_r1"`这行属性，就是把DeepSeek模型和这套约束解码机制关联起来的地方。这套机制只在**Decode阶段**（每生成一个新token时）生效，不影响Prefill阶段（处理输入prompt那一次性的批量前向计算）。
-
 **约束不是从头到尾一刀切的，`tool_choice`不同取值，约束生效的时机也不同**。查了vLLM里两个用同一套接口注册的模型族，源码里`tool_choice`的分支走的是完全不同的构造方式：
 
 - **`auto`（模型自己决定要不要调用）**：用的是`TriggeredTagsFormat(triggers=[...], ...)`——模型先**自由生成**，不受任何语法约束，推理服务全程盯着输出里有没有出现指定的**trigger字符串**（Hermes模型族真实用的trigger是`"<tool_call>"`，源码原文可查）；一旦匹配到，才切换进语法约束模式，限制后面的token只能符合工具调用格式。
 - **`forced`/`required`（必须调用）**：用的是`TagsWithSeparatorFormat(..., at_least_one=True, stop_after_first=True)`，**完全没有`trigger`这个概念**——约束从第一个token就直接生效，没有"先自由生成、等信号"这个阶段。
 
 这个区分是有道理的：如果`required`也走"等模型自己冒出trigger"这条路，模型理论上可以永远不生成trigger、一直输出自由文本，`required`的"必须调用"保证就落空了；只有`auto`这种"要不要调用本身也是模型的自主判断"的场景，才需要靠模型自己先生成的文本来触发信号。Kimi K3那份代码印证了同一个规律：`auto`分支用`OptionalFormat`包住工具调用部分（意思是"这部分可以没有"），`forced`/`required`分支直接把工具调用部分摆进序列，不包`Optional`。
-
-来源：vLLM开源代码 `vllm/entrypoints/openai/engine/protocol.py`（`StructuredOutputsParams`/`validate_xgrammar_grammar`）、`vllm/tool_parsers/deepseekv3_tool_parser.py`（`structural_tag_model`属性）、`vllm/tool_parsers/structural_tag_registry.py`（`get_hermes_structural_tag`/`get_kimi_k3_structural_tag`，`TriggeredTagsFormat`/`TagsWithSeparatorFormat`的具体分支逻辑）。**如实说明置信度**：确认了这套约束解码基础设施存在、`auto`用trigger机制而`required`不用这个分野在Hermes/Kimi K3两个模型族上是逐行确认的；但没有查到DeepSeek自己具体的trigger字符串是什么（定义在xgrammar库内部，不在vLLM仓库里），也没有逐行追踪到`tool_choice=required`触发构造语法状态机的确切代码行——这两点标注为高置信度推断，不是逐行确认。
 
 ### 3.3 掩码到底管了多少：固定骨架 vs 模型自由发挥
 
