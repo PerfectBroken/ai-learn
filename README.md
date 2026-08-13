@@ -9,9 +9,9 @@
 - [Transformer架构](transformer/Transformer.md)
 - [Token 经济学](token-economics/TokenEconomics.md)
 - [Context Window](context-window/ContextWindow.md)
-- Prompt Engineering
-- 采样参数
-- Function Calling
+- [Prompt Engineering](prompt-engineering/PromptEngineering.md)
+- [采样参数](sampling-parameters/SamplingParameters.md)
+- [Tool Calling](tool-calling/ToolCalling.md)
 
 ### Layer 2 — 工具系统
 

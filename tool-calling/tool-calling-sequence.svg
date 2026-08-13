@@ -1,0 +1,129 @@
+<svg viewBox="0 0 1620 700" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="时序图：Agent发送含tools的JSON请求，经推理服务内部的Chat Template渲染、Tokenizer、LLM模型、采样器、Detokenizer、Tool Parser处理后返回JSON。Chat Template渲染（JSON转模型原生格式）与Tool Parser解析（模型原生格式转JSON）两步用红色高亮。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+  </style>
+  <defs>
+    <marker id="arrowN" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="arrowR" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1620" height="700" fill="var(--bg)" />
+
+  <!-- service boundary -->
+  <rect x="230" y="10" width="1352" height="660" rx="16" fill="none" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="2 5" />
+  <text x="906" y="30" text-anchor="middle" font-size="12" letter-spacing="0.08em" class="faint">推理服务／API SERVER（例：vLLM、或DeepSeek官方后端）</text>
+
+  <!-- lifeline headers -->
+  <rect x="15" y="42" width="150" height="52" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="90" y="63" text-anchor="middle" font-weight="700" font-size="14">Agent</text>
+  <text x="90" y="80" text-anchor="middle" font-size="11" class="soft">调用方代码</text>
+
+  <rect x="277" y="42" width="150" height="52" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="352" y="63" text-anchor="middle" font-weight="700" font-size="14">Chat Template</text>
+  <text x="352" y="80" text-anchor="middle" font-size="11" class="soft">渲染器</text>
+
+  <rect x="504" y="42" width="150" height="52" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="579" y="63" text-anchor="middle" font-weight="700" font-size="14">Tokenizer</text>
+  <text x="579" y="80" text-anchor="middle" font-size="11" class="soft">分词器</text>
+
+  <rect x="731" y="42" width="150" height="52" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="806" y="63" text-anchor="middle" font-weight="700" font-size="14">LLM 模型</text>
+  <text x="806" y="80" text-anchor="middle" font-size="11" class="soft">神经网络前向计算</text>
+
+  <rect x="958" y="42" width="150" height="52" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1033" y="63" text-anchor="middle" font-weight="700" font-size="14">采样器</text>
+  <text x="1033" y="80" text-anchor="middle" font-size="11" class="soft">temperature/top-p</text>
+
+  <rect x="1185" y="42" width="150" height="52" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1260" y="63" text-anchor="middle" font-weight="700" font-size="14">Detokenizer</text>
+  <text x="1260" y="80" text-anchor="middle" font-size="11" class="soft">反分词</text>
+
+  <rect x="1412" y="42" width="150" height="52" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1487" y="63" text-anchor="middle" font-weight="700" font-size="14">Tool Parser</text>
+  <text x="1487" y="80" text-anchor="middle" font-size="11" class="soft">调用解析器</text>
+
+  <!-- lifelines -->
+  <line x1="90" y1="94" x2="90" y2="676" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="3 5" />
+  <line x1="352" y1="94" x2="352" y2="676" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="3 5" />
+  <line x1="579" y1="94" x2="579" y2="676" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="3 5" />
+  <line x1="806" y1="94" x2="806" y2="676" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="3 5" />
+  <line x1="1033" y1="94" x2="1033" y2="676" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="3 5" />
+  <line x1="1260" y1="94" x2="1260" y2="676" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="3 5" />
+  <line x1="1487" y1="94" x2="1487" y2="676" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="3 5" />
+
+  <!-- step 1: Agent -> ChatTemplate -->
+  <line x1="90" y1="128" x2="345" y2="128" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrowN)" />
+  <text x="221" y="120" text-anchor="middle" font-size="12.5">请求 { messages, tools }</text>
+
+  <!-- step 2: ChatTemplate -> Tokenizer  [RED conversion 1] -->
+  <line x1="352" y1="182" x2="572" y2="182" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#arrowR)" />
+  <text x="462" y="164" text-anchor="middle" font-weight="700" font-size="13" class="red">① JSON → 模型原生格式</text>
+  <text x="462" y="180" text-anchor="middle" font-size="11" class="mono red">渲染成含 &lt;｜tool▁calls▁begin｜&gt; 等特殊token的prompt文本</text>
+
+  <!-- step 3: Tokenizer -> LLM -->
+  <line x1="579" y1="228" x2="799" y2="228" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrowN)" />
+  <text x="692" y="220" text-anchor="middle" font-size="12.5">token ID 序列（prompt）</text>
+
+  <!-- loop box -->
+  <rect x="736" y="252" width="352" height="150" rx="4" fill="none" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="5 4" />
+  <path d="M736,252 h96 v18 l-10,10 h-86 z" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1" />
+  <text x="748" y="266" font-weight="700" font-size="11" fill="var(--sage)">loop</text>
+  <text x="912" y="266" text-anchor="middle" font-size="11" class="soft">逐token自回归生成，直到停止token</text>
+
+  <line x1="806" y1="312" x2="1026" y2="312" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrowN)" />
+  <text x="916" y="304" text-anchor="middle" font-size="12.5">logits（概率分布）</text>
+
+  <line x1="1033" y1="368" x2="813" y2="368" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrowN)" />
+  <text x="916" y="392" text-anchor="middle" font-size="12.5">选中的token</text>
+
+  <!-- step: LLM -> Detokenizer -->
+  <line x1="806" y1="440" x2="1253" y2="440" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrowN)" />
+  <text x="1029" y="432" text-anchor="middle" font-size="12.5">完整生成的token序列（循环结束）</text>
+
+  <!-- step: Detokenizer -> ToolParser -->
+  <line x1="1260" y1="494" x2="1480" y2="494" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrowN)" />
+  <text x="1370" y="486" text-anchor="middle" font-size="12.5">原生格式文本</text>
+  <text x="1370" y="502" text-anchor="middle" font-size="10.5" class="mono soft">&lt;｜tool▁calls▁begin｜&gt;...&lt;｜tool▁calls▁end｜&gt;</text>
+
+  <!-- step: ToolParser -> Agent [RED conversion 2] -->
+  <line x1="1487" y1="600" x2="97" y2="600" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#arrowR)" />
+  <text x="792" y="582" text-anchor="middle" font-weight="700" font-size="13" class="red">② 模型原生格式 → JSON</text>
+  <text x="792" y="598" text-anchor="middle" font-size="11" class="mono red">正则解析出 { tool_calls: [{ id, function.name, function.arguments }] }</text>
+
+  <!-- final label near agent -->
+  <text x="90" y="628" text-anchor="middle" font-size="11" class="soft">HTTP JSON 响应</text>
+</svg>

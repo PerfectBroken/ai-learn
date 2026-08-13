@@ -1,0 +1,162 @@
+<svg viewBox="0 0 1400 700" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="对比图：同一组候选token，无掩码时按原始logits采样可能选中语义通顺但破坏工具调用格式的词（如“好的”），导致Tool Parser解析失败；有掩码时不合法候选的logit被强制改成负无穷，只能采样到语法合法的token，保证后续输出能被正确解析成tool_calls。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .title { font-weight: 700; font-size: 14px; }
+  </style>
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="700" fill="var(--bg)" />
+
+  <!-- context box -->
+  <rect x="20" y="14" width="1360" height="58" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="36" y="36" font-size="12.5" class="soft">已生成文本：用户问我今天的天气，我不知道，需要去查找，需要调用天气查询工具……</text>
+  <text x="36" y="58" font-size="12.5" class="mono">…需要调用天气查询工具<tspan class="red" font-weight="700">&lt;｜tool▁calls▁begin｜&gt;</tspan> ← 现在要决定紧接着的下一个token</text>
+
+  <!-- candidates title -->
+  <text x="20" y="94" class="title">候选token（按logit从高到低，掩码生效前）</text>
+
+  <!-- bar chart rows -->
+  <!-- row1 好的 -->
+  <text x="20" y="120" font-size="12.5" class="mono">① 好的</text>
+  <rect x="230" y="106" width="500" height="20" rx="4" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="738" y="120" font-size="11.5" class="soft">logit 8.2（示意值，最高）</text>
+
+  <!-- row2 换行 -->
+  <text x="20" y="154" font-size="12.5" class="mono">② （换行）</text>
+  <rect x="230" y="140" width="464" height="20" rx="4" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="702" y="154" font-size="11.5" class="soft">logit 7.6</text>
+
+  <!-- row3 我 -->
+  <text x="20" y="188" font-size="12.5" class="mono">③ 我</text>
+  <rect x="230" y="174" width="433" height="20" rx="4" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="671" y="188" font-size="11.5" class="soft">logit 7.1</text>
+
+  <!-- row4 tool_call_begin -->
+  <text x="20" y="222" font-size="12.5" class="mono">④ &lt;｜tool▁call▁begin｜&gt;</text>
+  <rect x="230" y="208" width="390" height="20" rx="4" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.5" />
+  <text x="628" y="222" font-size="11.5" class="sage-t">logit 6.4（语法上唯一合法的token，但原始得分不是最高）</text>
+
+  <!-- row5 正在 -->
+  <text x="20" y="256" font-size="12.5" class="mono">⑤ 正在</text>
+  <rect x="230" y="242" width="354" height="20" rx="4" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="592" y="256" font-size="11.5" class="soft">logit 5.8</text>
+
+  <text x="20" y="282" font-size="11" class="faint">（logit数值为示意，非真实模型实测，只用来说明相对大小关系）</text>
+
+  <line x1="20" y1="300" x2="1380" y2="300" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4" />
+
+  <!-- column headers -->
+  <text x="20" y="326" class="title red">无掩码：直接按原始logits采样</text>
+  <text x="720" y="326" class="title sage-t">有掩码：先把语法不合法的候选清零</text>
+  <line x1="700" y1="312" x2="700" y2="686" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4" />
+
+  <!-- LEFT chips (unchanged) -->
+  <g>
+    <rect x="20" y="340" width="100" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="70" y="360" text-anchor="middle" font-size="13" font-weight="700">①</text>
+    <rect x="135" y="340" width="100" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="185" y="360" text-anchor="middle" font-size="13" font-weight="700">②</text>
+    <rect x="250" y="340" width="100" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="300" y="360" text-anchor="middle" font-size="13" font-weight="700">③</text>
+    <rect x="365" y="340" width="100" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="415" y="360" text-anchor="middle" font-size="13" font-weight="700">④</text>
+    <rect x="480" y="340" width="100" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="530" y="360" text-anchor="middle" font-size="13" font-weight="700">⑤</text>
+  </g>
+  <text x="20" y="390" font-size="11.5" class="soft">候选分布不变，"①好的"概率最高</text>
+
+  <!-- RIGHT chips (4 crossed, 1 kept) -->
+  <g>
+    <rect x="720" y="340" width="100" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" opacity="0.4" />
+    <text x="770" y="360" text-anchor="middle" font-size="13" opacity="0.5">①</text>
+    <line x1="722" y1="342" x2="818" y2="368" stroke="var(--accent-red)" stroke-width="1.5" opacity="0.7" />
+    <rect x="835" y="340" width="100" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" opacity="0.4" />
+    <text x="885" y="360" text-anchor="middle" font-size="13" opacity="0.5">②</text>
+    <line x1="837" y1="342" x2="933" y2="368" stroke="var(--accent-red)" stroke-width="1.5" opacity="0.7" />
+    <rect x="950" y="340" width="100" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" opacity="0.4" />
+    <text x="1000" y="360" text-anchor="middle" font-size="13" opacity="0.5">③</text>
+    <line x1="952" y1="342" x2="1048" y2="368" stroke="var(--accent-red)" stroke-width="1.5" opacity="0.7" />
+    <rect x="1065" y="338" width="100" height="34" rx="6" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="2" />
+    <text x="1115" y="360" text-anchor="middle" font-size="14" font-weight="700" class="sage-t">④</text>
+    <rect x="1180" y="340" width="100" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" opacity="0.4" />
+    <text x="1230" y="360" text-anchor="middle" font-size="13" opacity="0.5">⑤</text>
+    <line x1="1182" y1="342" x2="1278" y2="368" stroke="var(--accent-red)" stroke-width="1.5" opacity="0.7" />
+  </g>
+  <text x="720" y="390" font-size="11.5" class="sage-t">①②③⑤的logit被改成-∞，只剩④存活，概率≈100%</text>
+
+  <!-- down arrows -->
+  <line x1="270" y1="404" x2="270" y2="424" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+  <line x1="1040" y1="404" x2="1040" y2="424" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+
+  <!-- sample result boxes -->
+  <rect x="20" y="426" width="660" height="40" rx="8" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-width="1.5" />
+  <text x="350" y="451" text-anchor="middle" font-size="13" font-weight="700" class="red">采样结果：①"好的"</text>
+
+  <rect x="720" y="426" width="660" height="40" rx="8" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.5" />
+  <text x="1050" y="451" text-anchor="middle" font-size="13" font-weight="700" class="sage-t">采样结果：④"&lt;｜tool▁call▁begin｜&gt;"（唯一可能）</text>
+
+  <line x1="350" y1="466" x2="350" y2="486" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+  <line x1="1050" y1="466" x2="1050" y2="486" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+
+  <!-- continuation text boxes -->
+  <rect x="20" y="488" width="660" height="52" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="350" y="510" text-anchor="middle" font-size="12" class="mono">好的，我来帮您查询天气……</text>
+  <text x="350" y="528" text-anchor="middle" font-size="11" class="soft">（继续生成自由文本，脱离了工具调用格式）</text>
+
+  <rect x="720" y="488" width="660" height="52" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1050" y="510" text-anchor="middle" font-size="12" class="mono">&lt;｜tool▁call▁begin｜&gt;function&lt;｜tool▁sep｜&gt;get_weather…</text>
+  <text x="1050" y="528" text-anchor="middle" font-size="11" class="soft">（后续每一步继续被同一套语法约束）</text>
+
+  <line x1="350" y1="540" x2="350" y2="560" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+  <line x1="1050" y1="540" x2="1050" y2="560" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+
+  <!-- final outcome -->
+  <rect x="20" y="562" width="660" height="118" rx="10" fill="none" stroke="var(--accent-red)" stroke-width="2" />
+  <text x="350" y="592" text-anchor="middle" font-size="15" font-weight="700" class="red">✗ 不再是合法的tool_call结构</text>
+  <text x="350" y="618" text-anchor="middle" font-size="12" class="soft">Tool Parser的正则找不到</text>
+  <text x="350" y="636" text-anchor="middle" font-size="12" class="mono soft">&lt;｜tool▁calls▁begin｜&gt;…&lt;｜tool▁calls▁end｜&gt;</text>
+  <text x="350" y="658" text-anchor="middle" font-size="12" class="soft">解析失败，拿不到任何tool_calls，这轮工具调用形同虚设</text>
+
+  <rect x="720" y="562" width="660" height="118" rx="10" fill="none" stroke="var(--sage)" stroke-width="2" />
+  <text x="1050" y="592" text-anchor="middle" font-size="15" font-weight="700" class="sage-t">✓ 后续内容保证符合工具调用格式</text>
+  <text x="1050" y="618" text-anchor="middle" font-size="12" class="soft">每一步都被同一套语法状态机约束</text>
+  <text x="1050" y="636" text-anchor="middle" font-size="12" class="soft">直到正常闭合</text>
+  <text x="1050" y="658" text-anchor="middle" font-size="12" class="soft">Tool Parser能正确解析出完整的tool_calls</text>
+</svg>
