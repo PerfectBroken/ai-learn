@@ -1,0 +1,209 @@
+<svg viewBox="0 0 1300 1400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Confused Deputy攻击时序图，分两个情形对比：情形A（红色边框，没有per-client consent）——①攻击者向MCP代理Server M动态注册一个恶意client，redirect_uri=attacker.com；②攻击者把带这个client_id的钓鱼链接发给受害者；③受害者点击，浏览器向M发起/authorize请求；④M没有自己的consent页面，直接用自己的静态client_id=mcp-proxy把浏览器302重定向到第三方授权服务器TAS（红色高亮，根因起点）；⑤浏览器带着上次批准时TAS种下的consent cookie发起请求；⑥TAS检测到cookie已存在，跳过consent screen（红色高亮，TAS完全不知道背后是攻击者注册的redirect_uri）；⑦TAS签发3P授权码，重定向回M登记的静态回调地址；⑧浏览器把3P码交给M；⑨M用3P码换3P access token；⑩M生成自己的MCP授权码，关联到背后真实受害者身份；⑪M把结果重定向回③那次请求自带的redirect_uri，也就是attacker.com（红色高亮，根因）；⑫浏览器把MCP授权码送到attacker.com；⑬攻击者用这个码换MCP access token，从此能冒充受害者调用MCP Server。情形B（绿色边框，加上per-client consent后）——①到③跟情形A完全一样；④'M收到请求后先查自己的记录，这个client_id有没有被批准过，没有；⑤'M弹出自己的consent页面，明确写出未知应用名和回调地址attacker.com，这一步不依赖TAS那边的cookie；⑥'用户看到陌生应用名和回调地址，拒绝；⑦'流程在这里终止，M从未把请求转发给TAS，攻击链在第一步就断了。底部对比说明：如果是用户之前已经批准过的真正MCP Client重复发起同样流程，④'这里会查到已批准记录，直接放行不弹窗，不会骚扰用户，只有第一次出现的client_id才会停下来问。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .step { font-size: 11px; }
+    .note { font-size: 9.5px; }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+    <marker id="f3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1300" height="1400" fill="var(--bg)" />
+
+  <text x="30" y="30" font-size="14" font-weight="700">Confused Deputy：为什么"M必须对每个动态注册的Client单独做一次consent"能挡住这个攻击</text>
+
+  <!-- ============ trigger conditions box ============ -->
+  <rect x="30" y="42" width="1240" height="52" rx="8" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="46" y="61" font-size="10.5" font-weight="700">攻击成立需要同时满足4个条件，缺一不可：</text>
+  <text x="46" y="79" font-size="9.8" class="soft">M（MCP代理Server）对TAS（第三方授权服务器）用固定client_id="mcp-proxy"；M允许MCP Client各自动态注册redirect_uri；TAS会在批准后种一个consent cookie；M自己转发给TAS之前，不对"这个具体client_id/redirect_uri"单独确认。</text>
+
+  <!-- ============ PANEL A: vulnerable ============ -->
+  <rect x="20" y="108" width="1260" height="620" rx="14" fill="none" stroke="var(--accent-red)" stroke-width="1.8" />
+  <text x="40" y="132" font-size="13" font-weight="700" class="red">情形A：M没有per-client consent —— 攻击成立</text>
+
+  <!-- lifeline headers -->
+  <rect x="55" y="148" width="110" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="110" y="171" text-anchor="middle" font-size="11.5" font-weight="700">攻击者 A</text>
+
+  <rect x="330" y="148" width="130" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="395" y="164" text-anchor="middle" font-size="11" font-weight="700">受害者浏览器</text>
+  <text x="395" y="178" text-anchor="middle" font-size="9" class="faint">UA</text>
+
+  <rect x="640" y="148" width="150" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="715" y="164" text-anchor="middle" font-size="11" font-weight="700">MCP代理 M</text>
+  <text x="715" y="178" text-anchor="middle" font-size="8.7" class="faint">静态client_id=mcp-proxy</text>
+
+  <rect x="1010" y="148" width="150" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1085" y="164" text-anchor="middle" font-size="11" font-weight="700">TAS</text>
+  <text x="1085" y="178" text-anchor="middle" font-size="8.7" class="faint">第三方授权服务器</text>
+
+  <line x1="110" y1="186" x2="110" y2="710" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="395" y1="186" x2="395" y2="710" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="715" y1="186" x2="715" y2="710" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="1085" y1="186" x2="1085" y2="710" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+
+  <!-- ① A -> M register -->
+  <line x1="110" y1="212" x2="715" y2="212" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="412" y="206" text-anchor="middle" class="step">①动态注册恶意client，redirect_uri=attacker.com</text>
+
+  <!-- ② A -> UA -->
+  <line x1="110" y1="248" x2="395" y2="248" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="252" y="242" text-anchor="middle" class="step">②发钓鱼链接（指向M的/authorize，带①拿到的client_id）</text>
+
+  <!-- ③ UA -> M -->
+  <line x1="395" y1="284" x2="715" y2="284" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="555" y="278" text-anchor="middle" class="step">③受害者点击，浏览器发起/authorize请求</text>
+  <text x="555" y="296" text-anchor="middle" class="note mono soft">client_id=A注册的id &amp; redirect_uri=attacker.com</text>
+
+  <!-- ④ M -> UA redirect to TAS (RED) -->
+  <line x1="715" y1="336" x2="395" y2="336" stroke="var(--accent-red)" stroke-width="2" marker-end="url(#f3)" />
+  <text x="555" y="326" text-anchor="middle" class="step red" font-weight="700">④M没有自己的consent页面，直接302到TAS</text>
+  <text x="555" y="350" text-anchor="middle" class="note mono red">用M自己的静态client_id=mcp-proxy —— 不是A注册的那个</text>
+
+  <!-- ⑤ UA -> TAS with cookie -->
+  <line x1="395" y1="386" x2="1085" y2="386" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="740" y="380" text-anchor="middle" class="step">⑤浏览器带着consent cookie发起授权请求（client_id=mcp-proxy）</text>
+
+  <!-- ⑥ TAS self note (RED) -->
+  <rect x="960" y="402" width="270" height="46" rx="7" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-dasharray="4 3" />
+  <text x="1085" y="420" text-anchor="middle" class="step red" font-weight="700">⑥cookie已存在 → 跳过consent screen</text>
+  <text x="1085" y="436" text-anchor="middle" class="note red">TAS完全不知道背后是③那个陌生redirect_uri</text>
+
+  <!-- ⑦ TAS -> UA -->
+  <line x1="1085" y1="478" x2="395" y2="478" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="740" y="472" text-anchor="middle" class="step">⑦签发3P授权码，重定向回M登记的静态回调地址</text>
+
+  <!-- ⑧ UA -> M -->
+  <line x1="395" y1="514" x2="715" y2="514" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="555" y="508" text-anchor="middle" class="step">⑧交付3P授权码</text>
+
+  <!-- ⑨ M self: exchange token -->
+  <rect x="640" y="530" width="200" height="34" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="740" y="551" text-anchor="middle" class="note">⑨用3P码换3P access token</text>
+
+  <!-- ⑩ M self: generate mcp code -->
+  <rect x="640" y="574" width="220" height="34" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="750" y="595" text-anchor="middle" class="note">⑩生成MCP授权码，关联受害者真实身份</text>
+
+  <!-- ⑪ M -> UA redirect to attacker.com (RED, root cause) -->
+  <line x1="715" y1="644" x2="395" y2="644" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#f3)" />
+  <text x="555" y="628" text-anchor="middle" class="step red" font-weight="700">⑪重定向回③请求自带的redirect_uri = attacker.com</text>
+  <text x="555" y="658" text-anchor="middle" class="note red">根因：M按"这次请求自带的redirect_uri"转发，这个值从①起就由A选定</text>
+
+  <!-- ⑫ UA -> A -->
+  <line x1="395" y1="684" x2="110" y2="684" stroke="var(--accent-red)" stroke-width="2" marker-end="url(#f3)" />
+  <text x="252" y="678" text-anchor="middle" class="step red">⑫MCP授权码送到attacker.com</text>
+
+  <!-- ⑬ A -> M final -->
+  <text x="712" y="702" text-anchor="middle" class="step red" font-weight="700">⑬A用这个码向M换MCP access token —— 从此能冒充受害者调用MCP Server</text>
+
+  <!-- ============ PANEL B: fixed ============ -->
+  <rect x="20" y="748" width="1260" height="490" rx="14" fill="none" stroke="var(--sage)" stroke-width="1.8" />
+  <text x="40" y="772" font-size="13" font-weight="700" class="sage-t">情形B：M加上per-client consent —— 攻击失败</text>
+
+  <rect x="55" y="788" width="110" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="110" y="811" text-anchor="middle" font-size="11.5" font-weight="700">攻击者 A</text>
+
+  <rect x="330" y="788" width="130" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="395" y="804" text-anchor="middle" font-size="11" font-weight="700">受害者浏览器</text>
+  <text x="395" y="818" text-anchor="middle" font-size="9" class="faint">UA</text>
+
+  <rect x="640" y="788" width="150" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="715" y="804" text-anchor="middle" font-size="11" font-weight="700">MCP代理 M</text>
+  <text x="715" y="818" text-anchor="middle" font-size="8.7" class="faint">加了per-client consent gate</text>
+
+  <rect x="1010" y="788" width="150" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" opacity="0.5" />
+  <text x="1085" y="804" text-anchor="middle" font-size="11" font-weight="700" opacity="0.5">TAS</text>
+  <text x="1085" y="818" text-anchor="middle" font-size="8.7" class="faint" opacity="0.7">（本情形从未到达）</text>
+
+  <line x1="110" y1="826" x2="110" y2="1210" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="395" y1="826" x2="395" y2="1210" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="715" y1="826" x2="715" y2="1210" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="1085" y1="826" x2="1085" y2="1210" stroke="var(--line)" stroke-width="0.9" stroke-dasharray="2 6" opacity="0.35" />
+
+  <!-- ①-③ identical, compact -->
+  <line x1="110" y1="852" x2="715" y2="852" stroke="var(--ink-faint)" stroke-width="1.2" marker-end="url(#f1)" />
+  <text x="412" y="846" text-anchor="middle" class="step faint">①同上：动态注册恶意client，redirect_uri=attacker.com</text>
+
+  <line x1="110" y1="884" x2="395" y2="884" stroke="var(--ink-faint)" stroke-width="1.2" marker-end="url(#f1)" />
+  <text x="252" y="878" text-anchor="middle" class="step faint">②同上：发钓鱼链接</text>
+
+  <line x1="395" y1="916" x2="715" y2="916" stroke="var(--ink-faint)" stroke-width="1.2" marker-end="url(#f1)" />
+  <text x="555" y="910" text-anchor="middle" class="step faint">③同上：浏览器发起/authorize请求</text>
+
+  <rect x="900" y="898" width="330" height="34" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-dasharray="4 3" />
+  <text x="1065" y="919" text-anchor="middle" class="note soft">分叉点：①-③完全相同，M收到请求后的处理方式变了</text>
+
+  <!-- ④' M self check (SAGE) -->
+  <rect x="620" y="948" width="260" height="46" rx="7" fill="var(--sage-soft)" stroke="var(--sage)" />
+  <text x="750" y="966" text-anchor="middle" class="step sage-t" font-weight="700">④'查自己的记录：这个client_id批准过吗？</text>
+  <text x="750" y="982" text-anchor="middle" class="note sage-t">→ 没有（第一次出现）</text>
+
+  <!-- ⑤' M -> UA own consent screen (SAGE) -->
+  <line x1="715" y1="1032" x2="395" y2="1032" stroke="var(--sage)" stroke-width="2" marker-end="url(#f2)" />
+  <text x="555" y="1016" text-anchor="middle" class="step sage-t" font-weight="700">⑤'弹出M自己的consent页面（不依赖TAS的cookie）</text>
+  <text x="555" y="1050" text-anchor="middle" class="note mono sage-t">"允许『未知应用』访问？回调地址：attacker.com"</text>
+
+  <!-- ⑥' UA -> M decline (SAGE) -->
+  <line x1="395" y1="1082" x2="715" y2="1082" stroke="var(--sage)" stroke-width="2" marker-end="url(#f2)" />
+  <text x="555" y="1076" text-anchor="middle" class="step sage-t">⑥'用户看到陌生应用名+陌生回调地址，拒绝</text>
+
+  <!-- ⑦' termination -->
+  <rect x="330" y="1104" width="770" height="40" rx="8" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.4" />
+  <text x="715" y="1129" text-anchor="middle" class="step sage-t" font-weight="700">⑦'流程终止——M从未把请求转发给TAS，攻击链在第一步就断了</text>
+
+  <!-- comparison note -->
+  <rect x="55" y="1160" width="1170" height="42" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-dasharray="4 3" />
+  <text x="72" y="1178" font-size="9.8" class="soft">对比：如果是用户之前已经批准过的真正MCP Client（比如Claude Desktop）重复发起同样流程，④'这里会查到"已批准"记录，直接放行、不弹窗——</text>
+  <text x="72" y="1194" font-size="9.8" class="soft">不会每次都骚扰用户，只有"第一次出现的client_id"才会停下来单独问一次。</text>
+
+  <!-- ============ bottom takeaway ============ -->
+  <rect x="20" y="1256" width="1260" height="120" rx="12" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.2" />
+  <text x="40" y="1282" font-size="12" font-weight="700">根因一句话</text>
+  <text x="40" y="1306" font-size="10.5" class="soft">M把两件不该混的事混在了一起：①"TAS那边是否已经对静态client_id=mcp-proxy有consent cookie"（这只是一个跟哪个下游client无关的全局状态）</text>
+  <text x="40" y="1326" font-size="10.5" class="soft">②"我(M)有没有单独确认过<tspan class="mono">这个具体的下游client_id/redirect_uri</tspan>"。per-client consent的本质，是在M自己这一层插入一个不依赖TAS cookie状态、</text>
+  <text x="40" y="1346" font-size="10.5" class="soft">按client_id分别记录的确认关卡，而且这一关卡发生在"M决定把结果重定向到哪个redirect_uri"之前——攻击者能拿到的redirect_uri，从来就没被批准过。</text>
+</svg>

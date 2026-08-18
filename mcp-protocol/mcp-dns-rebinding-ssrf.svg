@@ -1,0 +1,152 @@
+<svg viewBox="0 0 1300 980" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DNS Rebinding导致SSRF的时序图。参与者：攻击者A（自己拥有并控制attacker.com的DNS记录）、DNS权威服务器（由A控制）、MCP Client、请求目标（同一个域名在不同时刻指向不同实体）。①A把attacker.com的DNS记录设成TTL=5秒，当前指向一个安全的外部IP 1.2.3.4；②A通过它控制的恶意MCP Server，给Client返回一个待处理的URL字段，比如resource_metadata=http://attacker.com/meta；③Client在真正请求前先做安全校验，第一次解析attacker.com；④DNS返回1.2.3.4；⑤Client判断1.2.3.4不在内网IP段，校验通过；⑥等待几秒，TTL过期（时间分界线）；⑦A把attacker.com的DNS记录改成169.254.169.254这个云元数据接口地址（红色高亮，根因起点）；⑧Client真正发起请求时，因为TTL已过期，重新解析同一个域名attacker.com（红色高亮，这是第二次独立的解析，不是复用第一次的结果）；⑨DNS这次返回169.254.169.254（红色高亮）；⑩Client的HTTP请求实际打到了这个内网云元数据接口；⑪该接口返回IAM凭证等敏感数据；⑫这些数据通过后续请求或错误信息，流向A控制的MCP Server，造成凭证泄露。底部结论：根因是安全校验和真正发起请求之间做了两次独立的DNS解析，攻击者用极短的TTL卡住这个时间差，让同一个域名字符串在两次解析里给出完全不同的答案，缓解方式是把校验时拿到的IP钉住直接复用，不要在发请求时重新解析。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .step { font-size: 11px; }
+    .note { font-size: 9.5px; }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+    <marker id="f3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1300" height="980" fill="var(--bg)" />
+
+  <text x="30" y="28" font-size="14" font-weight="700">DNS Rebinding导致SSRF：同一个域名，两次解析给出不同答案</text>
+
+  <!-- premise box -->
+  <rect x="30" y="40" width="1240" height="46" rx="8" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="46" y="59" font-size="10.5" font-weight="700">前提：攻击者自己合法拥有attacker.com这个域名，不需要攻陷任何人的DNS基础设施——</text>
+  <text x="46" y="76" font-size="9.8" class="soft">利用的只是"DNS记录随时能改、TTL能设得很短"这个再正常不过的机制。</text>
+
+  <!-- lifeline headers -->
+  <rect x="55" y="100" width="110" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="110" y="123" text-anchor="middle" font-size="11.5" font-weight="700">攻击者 A</text>
+
+  <rect x="325" y="100" width="140" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="395" y="117" text-anchor="middle" font-size="11" font-weight="700">DNS权威服务器</text>
+  <text x="395" y="131" text-anchor="middle" font-size="8.7" class="faint">（attacker.com，由A控制）</text>
+
+  <rect x="640" y="100" width="150" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="715" y="123" text-anchor="middle" font-size="11.5" font-weight="700">MCP Client</text>
+
+  <rect x="990" y="100" width="180" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1080" y="117" text-anchor="middle" font-size="11" font-weight="700">请求实际目标</text>
+  <text x="1080" y="131" text-anchor="middle" font-size="8.7" class="faint">（谁在监听取决于当前DNS）</text>
+
+  <line x1="110" y1="138" x2="110" y2="860" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="395" y1="138" x2="395" y2="860" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="715" y1="138" x2="715" y2="860" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="1080" y1="138" x2="1080" y2="860" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+
+  <!-- ① A -> DNS setup -->
+  <line x1="110" y1="164" x2="395" y2="164" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="252" y="158" text-anchor="middle" class="step">①配置DNS记录，TTL=5秒</text>
+  <text x="252" y="176" text-anchor="middle" class="note mono soft">attacker.com → 1.2.3.4（安全外部IP）</text>
+
+  <!-- annotation on target lifeline: currently safe IP -->
+  <rect x="990" y="192" width="180" height="30" rx="6" fill="var(--sage-soft)" stroke="var(--sage)" stroke-dasharray="3 3" />
+  <text x="1080" y="211" text-anchor="middle" font-size="9" class="sage-t">此刻attacker.com指向：安全外部服务</text>
+
+  <!-- ② A -> MC malicious field -->
+  <line x1="110" y1="244" x2="715" y2="244" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="412" y="238" text-anchor="middle" class="step">②（经它控制的恶意MCP Server）返回待处理URL字段</text>
+  <text x="412" y="256" text-anchor="middle" class="note mono soft">resource_metadata = "http://attacker.com/meta"</text>
+
+  <!-- ③ MC -> DNS first resolve -->
+  <line x1="715" y1="288" x2="395" y2="288" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="555" y="282" text-anchor="middle" class="step">③安全校验前，第1次解析attacker.com</text>
+
+  <!-- ④ DNS -> MC returns safe ip -->
+  <line x1="395" y1="322" x2="715" y2="322" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="555" y="316" text-anchor="middle" class="step mono">④返回 1.2.3.4</text>
+
+  <!-- ⑤ MC self check (SAGE) -->
+  <rect x="620" y="340" width="240" height="42" rx="7" fill="var(--sage-soft)" stroke="var(--sage)" />
+  <text x="740" y="358" text-anchor="middle" class="step sage-t" font-weight="700">⑤校验：1.2.3.4不在内网IP段</text>
+  <text x="740" y="374" text-anchor="middle" class="note sage-t">→ 通过 ✓（但只校验了这一次的结果）</text>
+
+  <!-- ⑥ time divider -->
+  <line x1="55" y1="410" x2="1200" y2="410" stroke="var(--ink-faint)" stroke-width="1.2" stroke-dasharray="8 4" />
+  <rect x="500" y="396" width="300" height="28" rx="14" fill="var(--bg)" stroke="var(--ink-faint)" />
+  <text x="650" y="415" text-anchor="middle" font-size="10.5" class="faint">⑥等待几秒，TTL（5秒）过期</text>
+
+  <!-- ⑦ A -> DNS flip record (RED, root cause) -->
+  <line x1="110" y1="452" x2="395" y2="452" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#f3)" />
+  <text x="252" y="442" text-anchor="middle" class="step red" font-weight="700">⑦把DNS记录改指向内网/云元数据IP</text>
+  <text x="252" y="466" text-anchor="middle" class="note mono red">attacker.com → 169.254.169.254</text>
+
+  <!-- annotation: target now internal -->
+  <rect x="990" y="440" width="180" height="30" rx="6" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-dasharray="3 3" />
+  <text x="1080" y="459" text-anchor="middle" font-size="9" class="red">此刻attacker.com已指向：云元数据接口</text>
+
+  <!-- ⑧ MC -> DNS second resolve (RED) -->
+  <line x1="715" y1="500" x2="395" y2="500" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#f3)" />
+  <text x="555" y="490" text-anchor="middle" class="step red" font-weight="700">⑧真正发起请求，TTL已过期→重新解析同一个域名</text>
+  <text x="555" y="514" text-anchor="middle" class="note red">这是独立的第2次解析，不是复用③④的结果</text>
+
+  <!-- ⑨ DNS -> MC returns internal ip (RED) -->
+  <line x1="395" y1="548" x2="715" y2="548" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#f3)" />
+  <text x="555" y="542" text-anchor="middle" class="step red mono" font-weight="700">⑨这次返回 169.254.169.254</text>
+
+  <!-- ⑩ MC -> Target actual request -->
+  <line x1="715" y1="588" x2="1080" y2="588" stroke="var(--accent-red)" stroke-width="2" marker-end="url(#f3)" />
+  <text x="895" y="582" text-anchor="middle" class="step red">⑩GET http://attacker.com/meta —— 实际打到了内网地址</text>
+
+  <!-- ⑪ Target -> MC sensitive data -->
+  <line x1="1080" y1="624" x2="715" y2="624" stroke="var(--accent-red)" stroke-width="2" marker-end="url(#f3)" />
+  <text x="895" y="618" text-anchor="middle" class="step red">⑪返回IAM凭证等敏感数据</text>
+
+  <!-- ⑫ MC -> A leak -->
+  <line x1="715" y1="660" x2="110" y2="660" stroke="var(--accent-red)" stroke-width="2" marker-end="url(#f3)" />
+  <text x="412" y="654" text-anchor="middle" class="step red">⑫通过后续请求/错误信息，敏感数据流向A控制的MCP Server</text>
+
+  <!-- takeaway -->
+  <rect x="30" y="700" width="1240" height="140" rx="12" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.2" />
+  <text x="48" y="726" font-size="12" font-weight="700">根因一句话</text>
+  <text x="48" y="750" font-size="10.5" class="soft">"安全校验"（③④⑤）和"真正发起请求"（⑧⑨⑩）之间，Client对同一个域名做了两次<tspan class="mono">独立</tspan>的DNS解析——攻击者用极短的TTL，</text>
+  <text x="48" y="770" font-size="10.5" class="soft">卡住这两次解析之间的时间差，让第一次解析（校验用）和第二次解析（请求用）给出完全不同的答案。校验通过的是"1.2.3.4"，真正发请求打到的是"169.254.169.254"，</text>
+  <text x="48" y="790" font-size="10.5" class="soft">但对Client来说这两次问的都是同一个"attacker.com"，代码逻辑上很容易误以为"校验过的就是接下来要请求的"。</text>
+  <text x="48" y="816" font-size="10.5" class="sage-t" font-weight="700">缓解方式：把③④校验时拿到的IP直接钉住复用到⑧⑩，不要在真正发请求时重新解析域名——这样即便DNS记录后来被改，请求依然打向校验过的那个IP。</text>
+</svg>

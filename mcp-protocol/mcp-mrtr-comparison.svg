@@ -1,0 +1,172 @@
+<svg viewBox="0 0 1300 1300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MRTR前后对比时序图。旧模式（红色边框，2026-07-28版本前，现已不再支持）：①Client向Server发起tools/call请求，id=1；②Server处理过程中判断需要更多信息（比如需要用户确认订单）；③Server在同一次请求生命周期内，反过来主动向Client发起一个嵌套的服务器发起请求elicitation/create；④Server进程和这条连接必须持续挂起，等待用户填表单，可能几秒也可能几分钟；⑤用户填完表单，Client把elicitation的响应发回Server；⑥Server才完成原始请求，返回result，id仍然是1。底部红色结论：整个过程①到⑥必须发生在同一个Server实例上，因为状态全部保存在这个实例的内存里，水平扩展部署时必须依赖sticky session把回复路由回同一台机器。新模式（绿色边框，MRTR，Multi Round-Trip Requests）：①Client向Server实例A发起tools/call请求，id=1；②Server实例A判断需要更多信息；③Server实例A立刻结束这次请求，返回InputRequiredResult，resultType为input_required，内含inputRequests（描述需要elicitation/create）和一个经过HMAC/AEAD签名的requestState不透明字符串；这次请求到这里完整结束，连接可以关闭，Server实例A被完全释放，不再记得这件事；④Client独立地去问用户，这段等待时间Server完全不参与、不知情；⑤用户填完表单后，Client发起一次全新的、独立的tools/call请求，id=2（全新id），带上inputResponses和原样带回的requestState，这次请求可能被负载均衡器分配到任意一台Server实例，图中标为Server实例B；⑥Server实例B验证requestState的签名、从中重建出完成请求所需的上下文，不需要询问实例A任何信息；⑦Server实例B返回最终Result，id=2。底部绿色结论：两次请求完全独立、无状态，任意Server实例都能处理第二次请求，因为所有需要的上下文都自包含在经过签名保护、防篡改防重放的requestState里，不再需要sticky session。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .step { font-size: 11px; }
+    .note { font-size: 9.5px; }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+    <marker id="f3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1300" height="1300" fill="var(--bg)" />
+
+  <text x="30" y="30" font-size="14" font-weight="700">MRTR前后对比：同样是"Server需要更多信息"，交互方式发生了什么变化</text>
+
+  <!-- ============ PANEL A: OLD ============ -->
+  <rect x="20" y="50" width="1260" height="480" rx="14" fill="none" stroke="var(--accent-red)" stroke-width="1.8" />
+  <text x="40" y="74" font-size="13" font-weight="700" class="red">旧模式：Server发起嵌套请求（2026-07-28版本前，现已不再支持）</text>
+
+  <rect x="150" y="90" width="150" height="36" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="225" y="112" text-anchor="middle" font-size="11.5" font-weight="700">Client</text>
+
+  <rect x="850" y="90" width="220" height="36" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="960" y="112" text-anchor="middle" font-size="11.5" font-weight="700">Server（唯一实例）</text>
+
+  <line x1="225" y1="126" x2="225" y2="500" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="960" y1="126" x2="960" y2="500" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+
+  <!-- ① Client -> Server -->
+  <line x1="225" y1="152" x2="960" y2="152" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="592" y="146" text-anchor="middle" class="step mono">①tools/call（id=1）</text>
+
+  <!-- ② Server self: needs more info -->
+  <rect x="830" y="170" width="260" height="34" rx="6" fill="var(--surface-3)" stroke="var(--line)" stroke-dasharray="3 3" />
+  <text x="960" y="191" text-anchor="middle" class="step soft">②处理中判断需要更多信息</text>
+
+  <!-- ③ Server -> Client nested request (RED) -->
+  <line x1="960" y1="234" x2="225" y2="234" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#f3)" />
+  <text x="592" y="222" text-anchor="middle" class="step red" font-weight="700">③Server主动发起嵌套请求 elicitation/create</text>
+  <text x="592" y="248" text-anchor="middle" class="note red">仍在①这次请求生命周期内部——不是一次独立的请求</text>
+
+  <!-- ④ blocked box (RED) -->
+  <rect x="830" y="270" width="260" height="60" rx="8" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-width="1.4" />
+  <text x="960" y="292" text-anchor="middle" class="step red" font-weight="700">④连接/进程持续挂起</text>
+  <text x="960" y="308" text-anchor="middle" class="note red">等用户填表单，几秒到几分钟不等</text>
+  <text x="960" y="322" text-anchor="middle" class="note red">这段时间Server资源被占着，不能释放</text>
+
+  <!-- ⑤ Client -> Server elicitation response -->
+  <line x1="225" y1="366" x2="960" y2="366" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="592" y="360" text-anchor="middle" class="step">⑤用户填完表单，回应elicitation请求</text>
+
+  <!-- ⑥ Server -> Client final result -->
+  <line x1="960" y1="410" x2="225" y2="410" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="592" y="404" text-anchor="middle" class="step mono">⑥result（id=1，同一个id，①这次请求才收尾）</text>
+
+  <!-- bottom takeaway A -->
+  <rect x="55" y="440" width="1190" height="72" rx="8" fill="var(--surface-3)" stroke="var(--accent-red)" stroke-dasharray="4 3" />
+  <text x="72" y="462" font-size="10.5" font-weight="700" class="red">根因：②③④⑤⑥全程必须发生在同一个Server实例上</text>
+  <text x="72" y="482" font-size="9.8" class="soft">状态（"我在等哪个用户的哪个回复"）全部保存在这台实例的内存里；水平扩展部署时，用户填完表单后的请求必须被路由回同一台机器，</text>
+  <text x="72" y="498" font-size="9.8" class="soft">否则没人认识这个待处理的会话——这就是官方原文说的"stateful load balancing"，分布式系统里通常要靠sticky session硬撑。</text>
+
+  <!-- ============ PANEL B: NEW (MRTR) ============ -->
+  <rect x="20" y="548" width="1260" height="680" rx="14" fill="none" stroke="var(--sage)" stroke-width="1.8" />
+  <text x="40" y="572" font-size="13" font-weight="700" class="sage-t">新模式：MRTR（Multi Round-Trip Requests）——两次完全独立的请求</text>
+
+  <rect x="90" y="588" width="150" height="36" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="165" y="610" text-anchor="middle" font-size="11.5" font-weight="700">Client</text>
+
+  <rect x="560" y="588" width="220" height="36" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="670" y="605" text-anchor="middle" font-size="11" font-weight="700">Server实例 A</text>
+  <text x="670" y="619" text-anchor="middle" font-size="8.7" class="faint">处理第①次请求</text>
+
+  <rect x="1010" y="588" width="220" height="36" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1120" y="605" text-anchor="middle" font-size="11" font-weight="700">Server实例 B（任意一台）</text>
+  <text x="1120" y="619" text-anchor="middle" font-size="8.7" class="faint">处理第②次请求，负载均衡器随机分配</text>
+
+  <line x1="165" y1="624" x2="165" y2="1180" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="670" y1="624" x2="670" y2="900" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="1120" y1="900" x2="1120" y2="1180" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+
+  <!-- ① Client -> Server A -->
+  <line x1="165" y1="650" x2="670" y2="650" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="417" y="644" text-anchor="middle" class="step mono">①tools/call（id=1）</text>
+
+  <!-- ② Server A self -->
+  <rect x="540" y="668" width="260" height="34" rx="6" fill="var(--surface-3)" stroke="var(--line)" stroke-dasharray="3 3" />
+  <text x="670" y="689" text-anchor="middle" class="step soft">②判断需要更多信息（跟旧模式一样）</text>
+
+  <!-- ③ Server A -> Client InputRequiredResult (SAGE, terminates) -->
+  <line x1="670" y1="748" x2="165" y2="748" stroke="var(--sage)" stroke-width="2.2" marker-end="url(#f2)" />
+  <text x="417" y="726" text-anchor="middle" class="step sage-t" font-weight="700">③立刻返回 InputRequiredResult（id=1）——这次请求到此完整结束</text>
+  <text x="417" y="742" text-anchor="middle" class="note mono soft">resultType=input_required，inputRequests={elicitation/create...}</text>
+  <text x="417" y="756" text-anchor="middle" class="note mono soft">+ 经HMAC/AEAD签名的 requestState（不透明字符串）</text>
+
+  <rect x="560" y="776" width="220" height="50" rx="8" fill="var(--sage-soft)" stroke="var(--sage)" />
+  <text x="670" y="795" text-anchor="middle" class="step sage-t" font-weight="700">连接关闭，实例A被释放</text>
+  <text x="670" y="812" text-anchor="middle" class="note sage-t">不再记得这次会话，资源可以立刻回收</text>
+
+  <!-- ④ Client self: gather input independently -->
+  <rect x="55" y="850" width="220" height="50" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-dasharray="3 3" />
+  <text x="165" y="869" text-anchor="middle" class="step soft" font-weight="700">④Client独立去问用户</text>
+  <text x="165" y="886" text-anchor="middle" class="note faint">这段时间Server完全不参与、不知情</text>
+
+  <!-- divider -->
+  <line x1="55" y1="928" x2="1245" y2="928" stroke="var(--ink-faint)" stroke-width="1.2" stroke-dasharray="8 4" />
+  <rect x="520" y="914" width="320" height="28" rx="14" fill="var(--bg)" stroke="var(--ink-faint)" />
+  <text x="680" y="933" text-anchor="middle" font-size="10.5" class="faint">用户填完表单，可能过了很久——但没关系</text>
+
+  <!-- ⑤ Client -> Server B new independent request -->
+  <line x1="165" y1="968" x2="1120" y2="968" stroke="var(--sage)" stroke-width="2.2" marker-end="url(#f2)" />
+  <text x="642" y="958" text-anchor="middle" class="step sage-t" font-weight="700">⑤全新、独立的tools/call请求（id=2，全新id）</text>
+  <text x="642" y="984" text-anchor="middle" class="note mono soft">带上 inputResponses + 原样带回的 requestState</text>
+
+  <!-- ⑥ Server B self: verify + reconstruct -->
+  <rect x="990" y="1004" width="260" height="50" rx="8" fill="var(--sage-soft)" stroke="var(--sage)" />
+  <text x="1120" y="1023" text-anchor="middle" class="step sage-t" font-weight="700">⑥验证requestState签名</text>
+  <text x="1120" y="1040" text-anchor="middle" class="note sage-t">重建上下文，不需要问实例A要任何东西</text>
+
+  <!-- ⑦ Server B -> Client final result -->
+  <line x1="1120" y1="1084" x2="165" y2="1084" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="642" y="1078" text-anchor="middle" class="step mono">⑦result（id=2）</text>
+
+  <!-- bottom takeaway B -->
+  <rect x="55" y="1116" width="1190" height="96" rx="8" fill="var(--surface-3)" stroke="var(--sage)" stroke-width="1.4" />
+  <text x="72" y="1140" font-size="10.5" font-weight="700" class="sage-t">关键区别：①③是一次完整的请求-响应，⑤⑦是另一次完全独立的请求-响应，中间没有任何嵌套</text>
+  <text x="72" y="1160" font-size="9.8" class="soft">状态不再保存在某个Server实例的内存里，而是外化进签名保护的requestState、由Client带着走——任意一台Server实例都能处理第②次请求，</text>
+  <text x="72" y="1176" font-size="9.8" class="soft">不需要sticky session；requestState做了完整性签名+防重放（绑定用户身份、短TTL、绑定原始请求参数摘要），防止被篡改来伪造服务端状态。</text>
+  <text x="72" y="1196" font-size="9.8" class="soft">代价：这两次请求要靠应用层的 id/state 语义手动"缝"在一起，不再有协议层面天然的因果关系——这是用协议复杂度换水平扩展能力。</text>
+
+</svg>

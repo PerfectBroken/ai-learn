@@ -1,0 +1,162 @@
+<svg viewBox="0 0 1300 1560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OAuth Authorization URL Validation与stdio Transport Security in Proxy Scenarios合并流程图，展示从浏览器脚本执行升级到远程代码执行的完整链条。入口路径A（JavaScript URL Injection）：①恶意MCP Server给Client提供一个javascript:开头的授权URL；②Client没有校验URL scheme，直接传给window.open()等浏览器API；③浏览器把这段当JS执行，攻击者代码在Client的执行上下文里跑起来。入口路径B（Shell命令注入，另一种效果等价的入口）：①恶意Server提供包含shell注入payload的URL；②Client用cmd.exe/PowerShell等shell去打开这个URL而不是走浏览器API；③shell把URL里的部分内容当成额外命令解释执行，直接在OS层面拿到代码执行。两条路径殊途同归，攻击者都拿到了在Client环境或主机上执行代码的能力。升级路径（重要限定：仅当Client通过一个独立的本地Proxy进程管理stdio连接时才成立，直接使用stdio没有这个风险）：④攻击者借助刚拿到的执行能力，从Client环境里把Client与Proxy之间的认证token偷出来；⑤拿着偷来的token向本地Proxy发一个伪装成合法MCP Server命令的stdio请求；⑥Proxy只凭token做认证，没有进一步校验这次spawn请求到底想启动什么命令；⑦Proxy真的spawn了这个攻击者构造的任意命令；⑧系统执行命令并返回output；⑨Proxy把结果传回Client；⑩攻击者借这条通路把窃取到的数据或命令结果传回自己控制的Server，或在这台机器上建立持久化后门，最终达成攻击者用户权限下的远程代码执行。底部结论：两条入口路径的共同根因是Client对来自Server的URL缺乏scheme白名单校验，也不该用shell去打开一个字符串；升级路径的根因是Proxy只凭一个可能被偷的token认证请求、不会进一步校验spawn请求的内容，stdio传输本身不是漏洞点。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .step { font-size: 11px; }
+    .note { font-size: 9.5px; }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1300" height="1560" fill="var(--bg)" />
+
+  <text x="30" y="28" font-size="14" font-weight="700">从"打开一个恶意URL"到"远程代码执行"：两个攻击类型合起来看的完整链条</text>
+
+  <!-- lifeline headers (shared across whole diagram) -->
+  <rect x="55" y="46" width="150" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="130" y="62" text-anchor="middle" font-size="11" font-weight="700">恶意MCP Server</text>
+  <text x="130" y="76" text-anchor="middle" font-size="8.7" class="faint">M</text>
+
+  <rect x="345" y="46" width="120" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="405" y="69" text-anchor="middle" font-size="11.5" font-weight="700">Client</text>
+
+  <rect x="640" y="46" width="140" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="710" y="62" text-anchor="middle" font-size="11" font-weight="700">本地Proxy</text>
+  <text x="710" y="76" text-anchor="middle" font-size="8.7" class="faint">管理stdio连接</text>
+
+  <rect x="1010" y="46" width="150" height="38" rx="7" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1085" y="62" text-anchor="middle" font-size="11" font-weight="700">用户系统</text>
+  <text x="1085" y="76" text-anchor="middle" font-size="8.7" class="faint">System / OS</text>
+
+  <line x1="130" y1="84" x2="130" y2="1420" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="405" y1="84" x2="405" y2="1420" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="710" y1="84" x2="710" y2="1420" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="3 5" />
+  <line x1="1085" y1="84" x2="1085" y2="1420" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="0" opacity="0.35" />
+
+  <!-- ============ Zone 1: Path A ============ -->
+  <rect x="20" y="100" width="800" height="220" rx="12" fill="none" stroke="var(--accent-red)" stroke-width="1.6" />
+  <text x="38" y="122" font-size="12" font-weight="700" class="red">入口路径A：JavaScript URL Injection（浏览器里执行恶意脚本）</text>
+
+  <line x1="130" y1="150" x2="405" y2="150" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="267" y="144" text-anchor="middle" class="step">①提供恶意"授权URL"</text>
+  <text x="267" y="162" text-anchor="middle" class="note mono soft">值是 javascript:... （本该是 https://...）</text>
+
+  <rect x="330" y="182" width="270" height="34" rx="6" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-dasharray="4 3" />
+  <text x="465" y="203" text-anchor="middle" class="step red">②没校验URL scheme，直接传给window.open()</text>
+
+  <rect x="330" y="230" width="380" height="46" rx="6" fill="var(--accent-red-soft)" stroke="var(--accent-red)" />
+  <text x="520" y="248" text-anchor="middle" class="step red" font-weight="700">③浏览器把这段当JS执行</text>
+  <text x="520" y="264" text-anchor="middle" class="note red">攻击者代码开始在Client自己的执行上下文里跑</text>
+
+  <text x="440" y="300" text-anchor="middle" font-size="11" class="faint" font-style="italic">—— 或者，效果等价的另一条入口 ——</text>
+
+  <!-- ============ Zone 2: Path B ============ -->
+  <rect x="20" y="332" width="800" height="220" rx="12" fill="none" stroke="var(--accent-red)" stroke-width="1.6" />
+  <text x="38" y="354" font-size="12" font-weight="700" class="red">入口路径B：Shell命令注入</text>
+
+  <line x1="130" y1="382" x2="405" y2="382" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="267" y="376" text-anchor="middle" class="step">①'提供含shell注入payload的URL</text>
+
+  <rect x="330" y="404" width="380" height="34" rx="6" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-dasharray="4 3" />
+  <text x="520" y="425" text-anchor="middle" class="step red">②'用cmd.exe/PowerShell等shell去"打开"这个URL</text>
+
+  <rect x="330" y="452" width="380" height="46" rx="6" fill="var(--accent-red-soft)" stroke="var(--accent-red)" />
+  <text x="520" y="470" text-anchor="middle" class="step red" font-weight="700">③'shell把URL里部分内容当额外命令执行</text>
+  <text x="520" y="486" text-anchor="middle" class="note red">直接在OS层面拿到代码执行，比①③更进一步</text>
+
+  <!-- merge point -->
+  <path d="M 520,320 L 520,332" fill="none" stroke="var(--accent-red)" stroke-width="1.4" stroke-dasharray="3 3" />
+  <rect x="230" y="562" width="580" height="42" rx="10" fill="var(--surface-3)" stroke="var(--accent-red)" stroke-width="1.4" />
+  <text x="520" y="588" text-anchor="middle" font-size="11" font-weight="700" class="red">两条路径殊途同归：攻击者已能在Client环境/主机上执行代码</text>
+
+  <!-- ============ Zone 3: escalation ============ -->
+  <rect x="20" y="628" width="1260" height="712" rx="14" fill="none" stroke="var(--accent-red)" stroke-width="1.8" />
+  <text x="40" y="654" font-size="13" font-weight="700" class="red">升级路径：仅当Client通过独立的本地Proxy进程管理stdio连接时才成立</text>
+  <rect x="40" y="664" width="1200" height="34" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-dasharray="3 3" />
+  <text x="640" y="686" text-anchor="middle" font-size="9.8" class="soft">官方原文特别限定："This attack vector only applies to MCP implementations that use a proxy architecture, not to direct stdio transport usage"——直接用stdio连Server没有这段风险</text>
+
+  <!-- ④ Client self: steal token -->
+  <rect x="290" y="716" width="330" height="46" rx="7" fill="var(--accent-red-soft)" stroke="var(--accent-red)" />
+  <text x="455" y="734" text-anchor="middle" class="step red" font-weight="700">④用刚拿到的代码执行能力，偷Client↔Proxy的认证token</text>
+  <text x="455" y="750" text-anchor="middle" class="note red">token本来是这两者之间私下用的，不该被网页脚本读到</text>
+
+  <!-- ⑤ Client -> Proxy stolen token request -->
+  <line x1="405" y1="800" x2="710" y2="800" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#f3)" />
+  <text x="557" y="790" text-anchor="middle" class="step red" font-weight="700">⑤拿着偷来的token，发一个伪装成合法命令的stdio请求</text>
+
+  <!-- ⑥ Proxy self: no further validation -->
+  <rect x="590" y="822" width="330" height="46" rx="7" fill="var(--accent-red-soft)" stroke="var(--accent-red)" />
+  <text x="755" y="840" text-anchor="middle" class="step red" font-weight="700">⑥Proxy只凭token做认证</text>
+  <text x="755" y="856" text-anchor="middle" class="note red">没有再校验"这次spawn请求到底想启动什么命令"</text>
+
+  <!-- ⑦ Proxy -> System spawn -->
+  <line x1="710" y1="900" x2="1085" y2="900" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#f3)" />
+  <text x="897" y="890" text-anchor="middle" class="step red" font-weight="700">⑦真的spawn了这个攻击者构造的任意命令</text>
+
+  <!-- ⑧ System -> Proxy output -->
+  <line x1="1085" y1="936" x2="710" y2="936" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="897" y="930" text-anchor="middle" class="step">⑧命令执行完，返回output</text>
+
+  <!-- ⑨ Proxy -> Client result -->
+  <line x1="710" y1="972" x2="405" y2="972" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="557" y="966" text-anchor="middle" class="step">⑨结果原样传回Client</text>
+
+  <!-- ⑩ Client -> M exfiltrate -->
+  <line x1="405" y1="1010" x2="130" y2="1010" stroke="var(--accent-red)" stroke-width="2.2" marker-end="url(#f3)" />
+  <text x="267" y="1000" text-anchor="middle" class="step red" font-weight="700">⑩把窃取的数据/命令结果传回攻击者的Server</text>
+  <text x="267" y="1024" text-anchor="middle" class="note red">或者在这台机器上建立持久化后门</text>
+
+  <!-- RCE outcome banner -->
+  <rect x="290" y="1050" width="720" height="50" rx="10" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-width="1.6" />
+  <text x="650" y="1072" text-anchor="middle" font-size="12.5" font-weight="700" class="red">结果：从"网页脚本能执行"升级成了"以用户权限在整台机器上远程代码执行"</text>
+  <text x="650" y="1090" text-anchor="middle" font-size="9.5" class="red">起点只是一个恶意URL，终点是完整的系统控制</text>
+
+  <!-- takeaway -->
+  <rect x="40" y="1120" width="1200" height="200" rx="12" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.2" />
+  <text x="58" y="1148" font-size="12" font-weight="700">根因一句话（两层，分别对应入口和升级）</text>
+  <text x="58" y="1174" font-size="10.5" class="soft"><tspan font-weight="700" fill="var(--ink)">入口层的共同根因</tspan>：Client对"来自Server的URL"没做scheme白名单校验（只该认http/https），也不该用shell去"打开"一个来自不可信来源的字符串——</text>
+  <text x="58" y="1194" font-size="10.5" class="soft">这两条路径本质上都是"把不可信输入直接喂给了一个会执行内容的接口"（浏览器的window.open() / shell的命令行解析）。</text>
+  <text x="58" y="1222" font-size="10.5" class="soft"><tspan font-weight="700" fill="var(--ink)">升级层的根因</tspan>：Proxy这一层只凭一个token做认证，却把"认证过的调用方"和"这次spawn请求的内容可信"划了等号——token被偷之后，Proxy没有任何</text>
+  <text x="58" y="1242" font-size="10.5" class="soft">额外机制去判断"这次真的是Client在正常使用，还是有人拿着偷来的token在冒充"。</text>
+  <text x="58" y="1270" font-size="10.5" font-weight="700" class="sage-t">stdio传输本身不是漏洞点——直接用stdio连接Server，浏览器层面的XSS不会自动带来本地代码执行；只有额外插入了"Proxy凭token就能spawn任意命令"这一层，才把两个本不相关的风险连成了一条链。</text>
+</svg>

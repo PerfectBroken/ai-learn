@@ -17,10 +17,9 @@
 
 - [MCP 协议](mcp-protocol/MCPProtocol.md)
 - [Tool Design](tool-design/ToolDesign.md)
-- Permission 系统
-- 工具发现 / 注册
-- 错误语义设计
-- 幂等性保障
+- [Permission 系统](mcp-protocol/MCPProtocol.md#5-trust--safety权限与同意机制)
+- [工具发现 / 注册](tool-discovery/ToolDiscovery.md)
+- [错误语义设计](error-semantics/ErrorSemantics.md)
 
 ### Layer 3 — Agent 架构
 

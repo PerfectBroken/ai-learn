@@ -126,6 +126,15 @@ OpenAI《A practical guide to building agents》给了一个更细的判断标�
 
 我们的工具目前单次返回的接口列表规模很小（最多几条路由），没有触发这个问题；但"错误信息要清楚可操作"这条我们确实做到了——`未知的仓库名：xxx。当前配置里可用的仓库：promotion-api`，比一个裸的`KeyError`或HTTP 400更符合这条原则，`unknown_repo`这条评估任务能稳定5/5通过也印证了这一点。
 
+**补充：另一篇官方文章讲了一套更根本的token优化思路——[Code execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)**。跟[ContextWindow.md §2.3.2](../context-window/ContextWindow.md#tools的选择)已经学过的Tool Search Tool不是同一个方案——那套方案解决的是"工具**定义**要不要一次性塞进context"，这篇解决的是**两个更深的浪费**：
+
+1. 工具一多，光是定义本身就能占掉几十万token（原文举例连了几千个工具，"process hundreds of thousands of tokens before reading a request"）；
+2. **中间结果会在模型的context里被读写两次**——比如把一份2小时会议记录从A工具传给B工具，传统tool_result往返会让这份记录完整流经模型一次、原文说这能多花50,000 tokens，但模型自己压根不需要看这份原始记录，只是要把它从A传到B。
+
+方案是把MCP工具重新表示成**文件系统里的代码文件**（比如`servers/google-drive/getDocument.ts`），Agent不是直接调`tools/call`，而是**写代码**去调用这些文件里的函数——工具通过`ls ./servers/`按需发现、按需读取，中间结果留在代码执行环境（sandbox）里，只有Agent真正需要看的最终结果才流回模型的context。原文给的具体数字：把一份Google Drive文档内容附加到Salesforce记录这个场景，从150,000 tokens降到2,000 tokens，节省98.7%。
+
+我们的工具目前规模小、没有中间结果传递的场景，用不上这套方案，但值得记住这是一条**跟Tool Search Tool并列、但解决不同问题**的路子——前者省的是"要不要提前加载定义"，后者省的是"中间数据要不要来回流经模型"。
+
 ### 3.5 对工具描述做Prompt Engineering（我们做得最深的部分）
 
 原文核心句：
@@ -181,13 +190,21 @@ from mcp.types import ToolAnnotations
     annotations=ToolAnnotations(
         readOnlyHint=True,      # 只读，不改任何东西
         destructiveHint=False,  # 没有破坏性
-        idempotentHint=True,    # 同样的参数调多次结果一样
+        idempotentHint=True,    # 幂等保障
         openWorldHint=False,    # 只在白名单里的固定仓库上操作，不是开放世界搜索类工具
     ),
 )
 ```
 
 这几个字段官方标注是"hint"——**不是给Agent的模型看的，是给MCP client（比如Claude Code）看的**，client可以据此决定要不要在调用前弹确认框、要不要允许自动批准。用真实的MCP协议请求验证过，`tools/list`返回的`annotations`里这四个字段都正确带出来了。
+
+**这几个hint容易被误认为是`MCPProtocol.md`里Elicitation机制的触发条件，实际上两者毫无关系——官方没有定义任何"hint取值→触发Elicitation"的映射**，详细对比见[《ToolAnnotations vs Elicitation》](../tool-consent/ToolConsentMechanisms.md)。
+
+**⑦ `idempotentHint`只是一句声明，幂等性本身怎么保证，MCP协议不管**——查了MCP官方schema里这个字段的原始定义，逐字是"If true, calling the tool repeatedly with the same arguments will have no additional effect on the its environment... Default: false"。这句定义本身就说明了协议的边界：MCP只让工具作者**声明**"我是不是幂等的"，没有配套任何强制机制——没有idempotency key字段，没有Server端去重，`tools/call`重复发两次，Server该执行几次还是执行几次，协议不拦。
+
+我们的工具能放心把`idempotentHint`设成`True`，根本原因不是做了什么特殊设计，而是它跟`readOnlyHint=True`是同一件事的两面——一个只读、不产生任何副作用的工具，天然就是幂等的，不需要额外实现。真正需要认真设计幂等性的场景，是`create_ticket`、`send_email`这类有副作用的工具：怎么保证幂等（幂等键、去重表、把操作设计成天然幂等的upsert而不是insert）——这套东西是分布式系统/传统软件工程里的成熟方案，MCP和Anthropic都没有在这一层发明新机制，查了Anthropic《Advanced tool use》全文，幂等性只在Programmatic Tool Calling最佳实践清单里出现过一句"Operations safe to retry (idempotent)"，没有展开。
+
+唯一算得上Agent场景特有的诱因是：**Agent自己生成的代码会在运行时自主决定要不要重试一次工具调用**（结果不确定、判断上次可能没成功），这种重试比传统系统里"网络超时触发重试"更频繁、更不可预测——这也是官方那句"safe to retry"想强调的前提。但"怎么应对"这半句，答案还是回到传统SE那套方案，不是AI层面单独长出来的新知识。
 
 ## 4 实战踩过的坑（文章没写、我们自己趟出来的）
 
