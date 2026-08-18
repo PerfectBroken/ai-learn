@@ -1,0 +1,153 @@
+<svg viewBox="0 0 1400 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="对比图：没有MCP时，4个AI应用（Host）要和4个工具两两定制集成，共16条连接，且随应用或工具数量增加而爆炸式增长；有MCP后，每个AI应用是一个内含MCP Client的Host，每个工具是一个MCP Server，双方直接连接、共同遵守同一套MCP协议，不经过任何中间路由节点，每边只需按协议实现一次就能和任意对方互通。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .title { font-weight: 700; font-size: 15px; }
+  </style>
+
+  <rect x="0" y="0" width="1400" height="400" fill="var(--bg)" />
+
+  <!-- ================= LEFT: no MCP ================= -->
+  <text x="20" y="24" class="title">没有MCP：M×N套定制集成</text>
+
+  <!-- AI app boxes -->
+  <g font-size="12.5" font-weight="600">
+    <rect x="20" y="60" width="130" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="85" y="87" text-anchor="middle">Claude Code</text>
+    <rect x="20" y="132" width="130" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="85" y="159" text-anchor="middle">Codex</text>
+    <rect x="20" y="204" width="130" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="85" y="231" text-anchor="middle">Cursor</text>
+    <rect x="20" y="276" width="130" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="85" y="303" text-anchor="middle">OpenClaw</text>
+  </g>
+
+  <!-- tool boxes -->
+  <g font-size="12.5" font-weight="600">
+    <rect x="490" y="60" width="130" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="555" y="87" text-anchor="middle">GitHub</text>
+    <rect x="490" y="132" width="130" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="555" y="159" text-anchor="middle">Google Drive</text>
+    <rect x="490" y="204" width="130" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="555" y="231" text-anchor="middle">数据库</text>
+    <rect x="490" y="276" width="130" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="555" y="303" text-anchor="middle">Slack</text>
+  </g>
+
+  <!-- 16 crossing lines: every AI box to every tool box -->
+  <g stroke="var(--accent-red)" stroke-width="1" opacity="0.55">
+    <line x1="150" y1="82" x2="490" y2="82" />
+    <line x1="150" y1="82" x2="490" y2="154" />
+    <line x1="150" y1="82" x2="490" y2="226" />
+    <line x1="150" y1="82" x2="490" y2="298" />
+    <line x1="150" y1="154" x2="490" y2="82" />
+    <line x1="150" y1="154" x2="490" y2="154" />
+    <line x1="150" y1="154" x2="490" y2="226" />
+    <line x1="150" y1="154" x2="490" y2="298" />
+    <line x1="150" y1="226" x2="490" y2="82" />
+    <line x1="150" y1="226" x2="490" y2="154" />
+    <line x1="150" y1="226" x2="490" y2="226" />
+    <line x1="150" y1="226" x2="490" y2="298" />
+    <line x1="150" y1="298" x2="490" y2="82" />
+    <line x1="150" y1="298" x2="490" y2="154" />
+    <line x1="150" y1="298" x2="490" y2="226" />
+    <line x1="150" y1="298" x2="490" y2="298" />
+  </g>
+
+  <text x="20" y="352" font-size="12.5" class="soft">16条定制集成——每新增一个应用或工具，</text>
+  <text x="20" y="372" font-size="12.5" class="soft">连接数还要再涨（M×N，爆炸式增长）</text>
+
+  <line x1="680" y1="10" x2="680" y2="400" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4" />
+
+  <!-- ================= RIGHT: with MCP ================= -->
+  <text x="760" y="24" class="title" fill="var(--sage)">有MCP：M+N，共用一套协议</text>
+
+  <!-- AI app boxes = MCP Host (each contains its own MCP Client per connection) -->
+  <g>
+    <rect x="760" y="60" width="110" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="815" y="80" text-anchor="middle" font-size="12.5" font-weight="600">Claude Code</text>
+    <text x="815" y="96" text-anchor="middle" font-size="9.5" class="faint">MCP Host（内含Client）</text>
+
+    <rect x="760" y="132" width="110" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="815" y="152" text-anchor="middle" font-size="12.5" font-weight="600">Codex</text>
+    <text x="815" y="168" text-anchor="middle" font-size="9.5" class="faint">MCP Host（内含Client）</text>
+
+    <rect x="760" y="204" width="110" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="815" y="224" text-anchor="middle" font-size="12.5" font-weight="600">Cursor</text>
+    <text x="815" y="240" text-anchor="middle" font-size="9.5" class="faint">MCP Host（内含Client）</text>
+
+    <rect x="760" y="276" width="110" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="815" y="296" text-anchor="middle" font-size="12.5" font-weight="600">OpenClaw</text>
+    <text x="815" y="312" text-anchor="middle" font-size="9.5" class="faint">MCP Host（内含Client）</text>
+  </g>
+
+  <!-- shared protocol "box" — dashed/hollow on purpose, to visually separate the two line segments per row without implying a real third-party routing server -->
+  <rect x="1000" y="55" width="90" height="270" rx="12" fill="none" stroke="var(--sage)" stroke-width="1.5" stroke-dasharray="6 4" />
+  <text x="1045" y="180" text-anchor="middle" font-size="13" font-weight="700" fill="var(--sage)">MCP</text>
+  <text x="1045" y="197" text-anchor="middle" font-size="10" fill="var(--sage)">协议</text>
+  <text x="1045" y="38" text-anchor="middle" font-size="11" font-weight="700" fill="var(--sage)">共享的MCP协议</text>
+  <text x="1045" y="342" text-anchor="middle" font-size="9.5" class="faint">（虚线框只为让两段连线区分开，</text>
+  <text x="1045" y="355" text-anchor="middle" font-size="9.5" class="faint">不是真实存在的中转服务器）</text>
+
+  <!-- tool boxes = MCP Server -->
+  <g>
+    <rect x="1230" y="60" width="150" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="1305" y="80" text-anchor="middle" font-size="12.5" font-weight="600">GitHub</text>
+    <text x="1305" y="96" text-anchor="middle" font-size="9.5" class="faint">MCP Server</text>
+
+    <rect x="1230" y="132" width="150" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="1305" y="152" text-anchor="middle" font-size="12.5" font-weight="600">Google Drive</text>
+    <text x="1305" y="168" text-anchor="middle" font-size="9.5" class="faint">MCP Server</text>
+
+    <rect x="1230" y="204" width="150" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="1305" y="224" text-anchor="middle" font-size="12.5" font-weight="600">数据库</text>
+    <text x="1305" y="240" text-anchor="middle" font-size="9.5" class="faint">MCP Server</text>
+
+    <rect x="1230" y="276" width="150" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+    <text x="1305" y="296" text-anchor="middle" font-size="12.5" font-weight="600">Slack</text>
+    <text x="1305" y="312" text-anchor="middle" font-size="9.5" class="faint">MCP Server</text>
+  </g>
+
+  <!-- Host -> protocol box, and protocol box -> Server: two distinct segments per row, not one unbroken line -->
+  <g stroke="var(--sage)" stroke-width="1.5">
+    <line x1="870" y1="82" x2="1000" y2="82" />
+    <line x1="870" y1="154" x2="1000" y2="154" />
+    <line x1="870" y1="226" x2="1000" y2="226" />
+    <line x1="870" y1="298" x2="1000" y2="298" />
+    <line x1="1090" y1="82" x2="1230" y2="82" />
+    <line x1="1090" y1="154" x2="1230" y2="154" />
+    <line x1="1090" y1="226" x2="1230" y2="226" />
+    <line x1="1090" y1="298" x2="1230" y2="298" />
+  </g>
+
+  <text x="760" y="368" font-size="12.5" fill="var(--sage)">Host的Client直接连Server——MCP只是双方共同遵守的协议，</text>
+  <text x="760" y="388" font-size="12.5" fill="var(--sage)">不是中间route的第三方；每边只需按协议实现一次，就能跟任意对方互通</text>
+</svg>

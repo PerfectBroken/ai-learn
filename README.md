@@ -15,8 +15,8 @@
 
 ### Layer 2 — 工具系统
 
-- MCP 协议
-- Tool Design
+- [MCP 协议](mcp-protocol/MCPProtocol.md)
+- [Tool Design](tool-design/ToolDesign.md)
 - Permission 系统
 - 工具发现 / 注册
 - 错误语义设计

@@ -1,0 +1,135 @@
+<svg viewBox="0 0 1360 1000" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="工具设计原型-评估-迭代循环图（api-impact-tool实战）。顶部四个阶段从左到右依次相连：①构建原型（server.py包装成MCP工具，用claude mcp add本地连测）→②设计评估任务（tasks.py，5条strong task，基于promotion-api真实数据）→③运行评估（run_eval.py里LLM与工具交替的while循环，跑完后judge单独打分）→④分析结果（读judge的reasoning和Agent的原始回答，定位具体缺陷）。从④往下，一条红色箭头指向中间的高亮回调框'发现真实缺陷'：nonexistent_symbol这条任务FAIL，Agent把工具返回的UNKNOWN结果误读成'确认没有影响，可以放心修改'。再往下是⑤改进工具：回到server.py补充output_caveats标签，说明UNKNOWN不等于确认安全。⑤的左侧有一条弧形箭头绕回③运行评估，标注'迭代重跑，直到达标'，构成完整的迭代闭环。④分析结果的右侧还有一条独立的、青绿色的成功路径箭头，向下连到底部的跨模型验证面板：同一套代码不做任何针对性调整，分别跑在DeepSeek的deepseek-v4-pro和Claude Sonnet 5上，两边通过率都是5/5，说明这个工具不是靠摸清楚某个模型的脾气才凑出来的效果，设计本身是通用的。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .title { font-weight: 700; font-size: 16px; }
+    .stage-title { font-weight: 700; font-size: 15.5px; }
+    .detail { font-size: 12.5px; }
+    .label { font-size: 11.5px; font-weight: 600; }
+  </style>
+  <defs>
+    <marker id="m-line" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="m-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+    <marker id="m-sage" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1360" height="1000" fill="var(--bg)" />
+
+  <text x="680" y="38" text-anchor="middle" class="title">工具设计的原型 → 评估 → 迭代循环（api-impact-tool实战）</text>
+
+  <!-- ===== Row 1: four pipeline stages ===== -->
+  <!-- Box 1 -->
+  <rect x="50" y="70" width="270" height="130" rx="12" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.2" />
+  <text x="70" y="98" class="stage-title">① 构建原型</text>
+  <text x="70" y="126" class="detail soft">server.py 包装成MCP工具</text>
+  <text x="70" y="146" class="detail soft">claude mcp add 本地连测</text>
+  <text x="70" y="176" class="detail faint">亲自用，不只看代码能不能跑</text>
+
+  <!-- Box 2 -->
+  <rect x="365" y="70" width="270" height="130" rx="12" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.2" />
+  <text x="385" y="98" class="stage-title">② 设计评估任务</text>
+  <text x="385" y="126" class="detail soft">tasks.py，5条strong task</text>
+  <text x="385" y="146" class="detail soft">基于promotion-api真实数据</text>
+  <text x="385" y="176" class="detail faint">不喂参数，逼Agent自己判断</text>
+
+  <!-- Box 3 -->
+  <rect x="680" y="70" width="270" height="130" rx="12" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.2" />
+  <text x="700" y="98" class="stage-title">③ 运行评估</text>
+  <text x="700" y="126" class="detail soft">run_eval.py：LLM↔工具</text>
+  <text x="700" y="146" class="detail soft">while循环，judge单独打分</text>
+  <text x="700" y="176" class="detail faint">Host编排，Client/Server复用</text>
+
+  <!-- Box 4 -->
+  <rect x="995" y="70" width="270" height="130" rx="12" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.2" />
+  <text x="1015" y="98" class="stage-title">④ 分析结果</text>
+  <text x="1015" y="126" class="detail soft">读judge reasoning</text>
+  <text x="1015" y="146" class="detail soft">+ Agent的原始回答</text>
+  <text x="1015" y="176" class="detail faint">定位具体缺陷，不只看PASS/FAIL</text>
+
+  <!-- arrows 1->2->3->4 -->
+  <line x1="320" y1="135" x2="360" y2="135" stroke="var(--line)" stroke-width="1.6" marker-end="url(#m-line)" />
+  <line x1="635" y1="135" x2="675" y2="135" stroke="var(--line)" stroke-width="1.6" marker-end="url(#m-line)" />
+  <line x1="950" y1="135" x2="990" y2="135" stroke="var(--line)" stroke-width="1.6" marker-end="url(#m-line)" />
+
+  <!-- ===== red path: box4 down to discovery callout ===== -->
+  <path d="M 1130,200 L 1130,260 L 970,260 L 970,300" fill="none" stroke="var(--accent-red)" stroke-width="1.6" marker-end="url(#m-red)" />
+  <text x="1000" y="252" text-anchor="middle" class="label red">发现问题</text>
+
+  <!-- discovery callout -->
+  <rect x="600" y="310" width="440" height="160" rx="12" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-width="1.4" />
+  <text x="620" y="340" class="stage-title red">发现真实缺陷</text>
+  <text x="620" y="368" class="detail">nonexistent_symbol 任务 FAIL</text>
+  <text x="620" y="392" class="detail soft">Agent把工具返回的 UNKNOWN 结果</text>
+  <text x="620" y="414" class="detail soft">误读成"确认没有影响，可以放心修改"</text>
+  <text x="620" y="440" class="detail faint">risk=UNKNOWN 其实专门表示"查无此符号"</text>
+
+  <!-- callout down to fix box -->
+  <line x1="820" y1="470" x2="820" y2="500" stroke="var(--accent-red)" stroke-width="1.6" marker-end="url(#m-red)" />
+
+  <!-- fix box -->
+  <rect x="600" y="510" width="440" height="120" rx="12" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.2" />
+  <text x="620" y="538" class="stage-title">⑤ 改进工具</text>
+  <text x="620" y="566" class="detail soft">server.py 补充 &lt;output_caveats&gt;</text>
+  <text x="620" y="590" class="detail soft">说明白 UNKNOWN ≠ 确认安全</text>
+  <text x="620" y="614" class="detail faint">description 是Agent唯一能看到的说明书</text>
+
+  <!-- loop back arrow: fix box left -> up -> into box3 (运行评估) -->
+  <path d="M 595,570 L 250,570 L 250,135 L 675,135" fill="none" stroke="var(--line)" stroke-width="1.6" stroke-dasharray="7 5" marker-end="url(#m-line)" />
+  <rect x="150" y="545" width="140" height="30" rx="8" fill="var(--bg)" />
+  <text x="220" y="565" text-anchor="middle" class="label soft">迭代重跑，直到达标</text>
+
+  <!-- ===== sage path: box4 -> final cross-model panel (success path) ===== -->
+  <path d="M 1230,200 L 1230,700" fill="none" stroke="var(--sage)" stroke-width="1.8" marker-end="url(#m-sage)" />
+  <text x="1245" y="450" class="label sage-t" transform="rotate(90 1245 450)" text-anchor="middle">达标后</text>
+
+  <!-- final panel -->
+  <rect x="50" y="710" width="1215" height="220" rx="14" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.4" />
+  <text x="75" y="745" class="stage-title sage-t">跨模型验证 —— 5/5 全部通过</text>
+  <text x="75" y="778" class="detail">同一套 server.py + tasks.py + run_eval.py，分别在两家模型上各跑一遍：</text>
+
+  <text x="95" y="810" class="detail mono soft">DeepSeek（deepseek-v4-pro，走Anthropic兼容端点）—— 5/5 通过</text>
+  <text x="95" y="834" class="detail mono soft">Claude（claude-sonnet-5，真实Anthropic API）—— 5/5 通过</text>
+
+  <text x="75" y="878" class="detail">→ 通过率一致，说明工具设计本身（description、参数schema、错误信息）是通用的</text>
+  <text x="75" y="902" class="detail soft">　不依赖某个特定模型的"脑补"能力去弥补设计上的模糊地带</text>
+</svg>

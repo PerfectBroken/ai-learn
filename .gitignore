@@ -1,6 +1,8 @@
 .venv/
+tool-design/api-impact-tool/venv/
 __pycache__/
 *.pyc
 .DS_Store
 .idea/
 token-economics/.cache/
+tool-design/run_evals.sh

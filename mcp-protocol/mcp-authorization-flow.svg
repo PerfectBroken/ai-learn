@@ -1,0 +1,159 @@
+<svg viewBox="0 0 1300 980" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MCP Authorization授权流程时序图，四方参与：User-Agent浏览器、Client、MCP Server（资源服务器）、Authorization Server（授权服务器）。①Client不带token发起tools/call；②Server返回401 Unauthorized，带WWW-Authenticate头指出资源元数据地址；③Client请求Protected Resource Metadata；④Server返回metadata，内含授权服务器地址；⑤Client向授权服务器请求其metadata；⑥授权服务器返回metadata；⑦Client完成注册（推荐用Client ID Metadata Documents，即用一个HTTPS URL当client_id，授权服务器反向抓取该URL拿到Client信息；Dynamic Client Registration已废弃仅做兼容；也可以是预注册好的client_id）；⑧Client生成PKCE参数并记录预期issuer；⑨Client打开浏览器跳转到授权URL，带上resource和scope参数；⑩浏览器带resource参数向授权服务器发起授权请求；⑪用户登录并同意所请求的权限范围；⑫授权服务器重定向回调地址，带上授权码和iss；⑬浏览器把授权码回调给Client；⑭Client校验iss与之前记录的issuer是否一致；⑮Client用code_verifier和resource向授权服务器换取token；⑯授权服务器返回access_token；⑰Client携带Authorization: Bearer token重新发起tools/call；⑱Server返回正常的MCP响应，通信恢复正常。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+    <marker id="f3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1300" height="980" fill="var(--bg)" />
+
+  <!-- lifeline headers -->
+  <rect x="30" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="90" y="76" text-anchor="middle" font-size="11.5" font-weight="700">User-Agent</text>
+  <text x="90" y="90" text-anchor="middle" font-size="9.5" class="faint">（浏览器）</text>
+
+  <rect x="360" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="420" y="81" text-anchor="middle" font-size="13" font-weight="700">Client</text>
+
+  <rect x="700" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="760" y="76" text-anchor="middle" font-size="12" font-weight="700">MCP Server</text>
+  <text x="760" y="90" text-anchor="middle" font-size="9.5" class="faint">（资源服务器）</text>
+
+  <rect x="1040" y="55" width="140" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1110" y="76" text-anchor="middle" font-size="12" font-weight="700">Authorization</text>
+  <text x="1110" y="90" text-anchor="middle" font-size="9.5" class="faint">Server（授权服务器）</text>
+
+  <!-- lifelines -->
+  <line x1="90" y1="97" x2="90" y2="885" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="420" y1="97" x2="420" y2="885" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="760" y1="97" x2="760" y2="885" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="1110" y1="97" x2="1110" y2="885" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+
+  <!-- 1 -->
+  <line x1="420" y1="125" x2="760" y2="125" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="590" y="119" text-anchor="middle" font-size="10.5">①tools/call（不带token）</text>
+
+  <!-- 2 (red, 401) -->
+  <line x1="760" y1="165" x2="420" y2="165" stroke="var(--accent-red)" stroke-width="2" marker-end="url(#f3)" />
+  <text x="590" y="150" text-anchor="middle" font-size="10.5" font-weight="700" class="red">②401 Unauthorized</text>
+  <text x="590" y="163" text-anchor="middle" font-size="9" class="mono red">WWW-Authenticate: resource_metadata=".../.well-known/oauth-protected-resource"</text>
+
+  <!-- 3 -->
+  <line x1="420" y1="205" x2="760" y2="205" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="590" y="199" text-anchor="middle" font-size="10.5">③GET Protected Resource Metadata</text>
+
+  <!-- 4 -->
+  <line x1="760" y1="240" x2="420" y2="240" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="590" y="234" text-anchor="middle" font-size="10.5" class="soft">④返回metadata（含授权服务器地址）</text>
+
+  <!-- 5 -->
+  <line x1="420" y1="275" x2="1110" y2="275" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="765" y="269" text-anchor="middle" font-size="10.5">⑤GET 授权服务器metadata端点</text>
+
+  <!-- 6 -->
+  <line x1="1110" y1="310" x2="420" y2="310" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="765" y="304" text-anchor="middle" font-size="10.5" class="soft">⑥返回AS metadata（authorization_endpoint / token_endpoint...）</text>
+
+  <!-- alt box: client registration -->
+  <rect x="360" y="333" width="800" height="100" rx="8" fill="var(--sage-soft)" opacity="0.55" stroke="var(--sage)" stroke-width="1.2" stroke-dasharray="5 3" />
+  <text x="760" y="350" text-anchor="middle" font-size="10.5" font-weight="700">⑦Client注册（三选一，推荐用Client ID Metadata Documents）</text>
+  <line x1="420" y1="375" x2="1110" y2="375" stroke="var(--sage)" stroke-width="1.3" marker-end="url(#f2)" />
+  <text x="765" y="369" text-anchor="middle" font-size="9.5" class="sage-t">用HTTPS URL作为client_id</text>
+  <line x1="1110" y1="400" x2="420" y2="400" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#f2)" />
+  <text x="765" y="394" text-anchor="middle" font-size="9.5" class="sage-t">AS反向抓取该URL，拿到Client metadata</text>
+  <text x="760" y="420" text-anchor="middle" font-size="9" class="faint">（Dynamic Client Registration已废弃，仅兼容旧AS；预注册则直接复用已有client_id）</text>
+
+  <!-- 8: self note -->
+  <rect x="340" y="450" width="200" height="34" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="440" y="471" text-anchor="middle" font-size="9.5">⑧生成PKCE参数，记录预期issuer</text>
+
+  <!-- 9 -->
+  <line x1="420" y1="505" x2="90" y2="505" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="255" y="494" text-anchor="middle" font-size="10.5">⑨打开浏览器 → 授权URL</text>
+  <text x="255" y="507" text-anchor="middle" font-size="9" class="mono soft">resource=mcp.example.com&amp;scope=drive.readonly</text>
+
+  <!-- 10 -->
+  <line x1="90" y1="540" x2="1110" y2="540" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="600" y="534" text-anchor="middle" font-size="10.5">⑩携带resource参数发起授权请求</text>
+
+  <!-- 11: human note -->
+  <rect x="500" y="558" width="520" height="32" rx="6" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-dasharray="4 3" />
+  <text x="760" y="578" text-anchor="middle" font-size="10" class="red">⑪用户登录并同意所请求的权限范围（人工操作）</text>
+
+  <!-- 12 -->
+  <line x1="1110" y1="618" x2="90" y2="618" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="600" y="612" text-anchor="middle" font-size="10.5">⑫重定向回callback，带上code + iss</text>
+
+  <!-- 13 -->
+  <line x1="90" y1="653" x2="420" y2="653" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="255" y="647" text-anchor="middle" font-size="10" class="mono">⑬授权码回调：?code=...&amp;iss=...</text>
+
+  <!-- 14: self note -->
+  <rect x="340" y="672" width="240" height="30" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="460" y="691" text-anchor="middle" font-size="9.5">⑭校验iss与记录的issuer是否一致</text>
+
+  <!-- 15 -->
+  <line x1="420" y1="730" x2="1110" y2="730" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="765" y="719" text-anchor="middle" font-size="10.5">⑮POST /token</text>
+  <text x="765" y="732" text-anchor="middle" font-size="9" class="mono soft">code_verifier + resource</text>
+
+  <!-- 16 -->
+  <line x1="1110" y1="765" x2="420" y2="765" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+  <text x="765" y="759" text-anchor="middle" font-size="10.5" class="soft">⑯返回access_token（+ refresh_token）</text>
+
+  <!-- 17 (sage, restored MCP) -->
+  <line x1="420" y1="810" x2="760" y2="810" stroke="var(--sage)" stroke-width="1.8" marker-end="url(#f2)" />
+  <text x="590" y="799" text-anchor="middle" font-size="10.5" font-weight="700" class="sage-t">⑰tools/call</text>
+  <text x="590" y="812" text-anchor="middle" font-size="9" class="mono sage-t">Authorization: Bearer &lt;access_token&gt;</text>
+
+  <!-- 18 (sage) -->
+  <line x1="760" y1="845" x2="420" y2="845" stroke="var(--sage)" stroke-width="1.8" marker-end="url(#f2)" />
+  <text x="590" y="839" text-anchor="middle" font-size="10.5" font-weight="700" class="sage-t">⑱返回正常MCP响应</text>
+
+  <!-- legend -->
+  <text x="30" y="910" font-size="10" class="red">红色：401触发授权流程 / 需要人工在浏览器里登录同意</text>
+  <text x="30" y="925" font-size="10" class="sage-t">莫兰迪绿：拿到token后，MCP协议正常通信恢复（这一步之后就是我们之前学过的tools/call流程）</text>
+  <text x="30" y="940" font-size="10" class="faint">整个授权流程套在MCP协议消息外面，不属于MCP消息格式本身的一部分</text>
+</svg>

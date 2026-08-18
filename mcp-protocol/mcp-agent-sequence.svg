@@ -1,0 +1,153 @@
+<svg viewBox="0 0 1520 760" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AI Agent与MCP Server交互时序图。参与者从左到右：User、Host、LLM、MCP Client、MCP Server，其中Host/LLM/MCP Client同属一个Agent进程，用虚线框圈出。第一阶段：Client向Server发起server/discover和tools/list完成能力与工具发现。第二阶段：用户提问后，Host把问题和工具清单交给LLM，LLM按Tool Calling章节学过的约束解码机制生成tool_use，Host把它转成MCP的tools/call请求发给Server，Server执行后返回content结果，结果经Host喂回LLM，LLM生成最终回答返回给用户。第三阶段（附加）：Client可选择订阅通知，Server工具集变化时主动推送notification。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .phase { font-weight: 700; font-size: 13.5px; }
+  </style>
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+    <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1520" height="760" fill="var(--bg)" />
+
+  <!-- Agent process boundary (Host + LLM + MCP Client all live in the same process) -->
+  <rect x="300" y="45" width="900" height="690" rx="14" fill="none" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="6 4" />
+  <text x="750" y="34" text-anchor="middle" font-size="11.5" class="faint">Agent进程内部（Host内含LLM调用逻辑和MCP Client组件）</text>
+
+  <!-- lifeline headers -->
+  <rect x="30" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="90" y="81" text-anchor="middle" font-size="13" font-weight="700">User</text>
+
+  <rect x="340" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="400" y="81" text-anchor="middle" font-size="13" font-weight="700">Host</text>
+
+  <rect x="660" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="720" y="81" text-anchor="middle" font-size="13" font-weight="700">LLM</text>
+
+  <rect x="980" y="55" width="150" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1055" y="81" text-anchor="middle" font-size="13" font-weight="700">MCP Client</text>
+
+  <rect x="1350" y="55" width="140" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1420" y="81" text-anchor="middle" font-size="13" font-weight="700">MCP Server</text>
+
+  <!-- lifelines -->
+  <line x1="90" y1="97" x2="90" y2="735" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="400" y1="97" x2="400" y2="735" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="720" y1="97" x2="720" y2="735" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="1055" y1="97" x2="1055" y2="735" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="1420" y1="97" x2="1420" y2="735" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+
+  <!-- ===== Phase 1: discovery ===== -->
+  <text x="340" y="118" class="phase" fill="var(--sage)">① 建立连接：能力与工具发现（Host启动/首次连接时）</text>
+
+  <line x1="1055" y1="132" x2="1420" y2="132" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#a2)" />
+  <text x="1237" y="126" text-anchor="middle" font-size="11" class="mono sage-t">server/discover</text>
+
+  <line x1="1420" y1="156" x2="1055" y2="156" stroke="var(--sage)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a2)" />
+  <text x="1237" y="150" text-anchor="middle" font-size="11" class="soft">返回 capabilities / supportedVersions</text>
+
+  <line x1="1055" y1="180" x2="1420" y2="180" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#a2)" />
+  <text x="1237" y="174" text-anchor="middle" font-size="11" class="mono sage-t">tools/list</text>
+
+  <line x1="1420" y1="204" x2="1055" y2="204" stroke="var(--sage)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a2)" />
+  <text x="1237" y="198" text-anchor="middle" font-size="11" class="soft">返回 tools[]（name/description/inputSchema）</text>
+
+  <line x1="30" y1="222" x2="1490" y2="222" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4" />
+
+  <!-- ===== Phase 2: user query -> LLM decides -> execute -> answer ===== -->
+  <text x="340" y="243" class="phase">② 用户提问 → LLM决策调用 → 执行 → 生成回答</text>
+
+  <line x1="90" y1="258" x2="400" y2="258" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+  <text x="245" y="252" text-anchor="middle" font-size="11">"今天天气怎么样？"</text>
+
+  <line x1="400" y1="282" x2="720" y2="282" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+  <text x="560" y="276" text-anchor="middle" font-size="10.5" class="soft">问题 + tools参数（来自①的工具清单）</text>
+
+  <line x1="720" y1="312" x2="400" y2="312" stroke="var(--accent-red)" stroke-width="2" marker-end="url(#a3)" />
+  <text x="560" y="302" text-anchor="middle" font-size="11" font-weight="700" class="red">tool_use：调用get_weather</text>
+  <text x="560" y="316" text-anchor="middle" font-size="9.5" class="red">（语法约束解码保证格式，见Tool Calling章节3.2）</text>
+
+  <line x1="400" y1="340" x2="1055" y2="340" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#a2)" />
+  <text x="727" y="334" text-anchor="middle" font-size="10.5" class="sage-t">Host把tool_use翻译成MCP请求</text>
+
+  <line x1="1055" y1="366" x2="1420" y2="366" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#a2)" />
+  <text x="1237" y="360" text-anchor="middle" font-size="11" class="mono sage-t">tools/call(name, arguments)</text>
+
+  <rect x="1370" y="378" width="100" height="26" rx="5" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1420" y="395" text-anchor="middle" font-size="10" class="faint">Server执行</text>
+
+  <line x1="1420" y1="418" x2="1055" y2="418" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#a2)" />
+  <text x="1237" y="412" text-anchor="middle" font-size="11" class="mono sage-t">content[]（执行结果）</text>
+
+  <line x1="1055" y1="444" x2="400" y2="444" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#a2)" />
+  <text x="727" y="438" text-anchor="middle" font-size="10.5" class="sage-t">结果传回Host</text>
+
+  <line x1="400" y1="470" x2="720" y2="470" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+  <text x="560" y="464" text-anchor="middle" font-size="10.5" class="soft">结果作为tool_result喂回，继续生成</text>
+
+  <line x1="720" y1="496" x2="400" y2="496" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+  <text x="560" y="490" text-anchor="middle" font-size="11">生成最终自然语言回答</text>
+
+  <line x1="400" y1="522" x2="90" y2="522" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" />
+  <text x="245" y="516" text-anchor="middle" font-size="11">"今天San Francisco 15℃，多云"</text>
+
+  <line x1="30" y1="542" x2="1490" y2="542" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4" />
+
+  <!-- ===== Phase 3: notifications (optional) ===== -->
+  <text x="340" y="563" class="phase" fill="var(--sage)">③（附加，可选）实时通知：工具集变化时Server主动推送</text>
+
+  <line x1="1055" y1="580" x2="1420" y2="580" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#a2)" />
+  <text x="1237" y="574" text-anchor="middle" font-size="10.5" class="mono sage-t">subscriptions/listen（订阅变更通知）</text>
+
+  <line x1="1420" y1="606" x2="1055" y2="606" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#a2)" />
+  <text x="1237" y="600" text-anchor="middle" font-size="10.5" class="sage-t">acknowledged（确认订阅）</text>
+
+  <line x1="1420" y1="636" x2="1055" y2="636" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#a2)" />
+  <text x="1237" y="630" text-anchor="middle" font-size="10.5" class="sage-t">notification：工具集变了（按需触发，不是每次都有）</text>
+
+  <line x1="1055" y1="662" x2="1420" y2="662" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a1)" />
+  <text x="1237" y="656" text-anchor="middle" font-size="10.5" class="faint">Client收到后重新拉一次tools/list刷新</text>
+
+  <text x="30" y="720" font-size="10.5" class="faint">红色：Tool Calling章节学过的机制（LLM如何决定并生成结构化调用）</text>
+  <text x="30" y="736" font-size="10.5" class="sage-t">莫兰迪绿：这一章新学的MCP协议消息（JSON-RPC 2.0）</text>
+</svg>

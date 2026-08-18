@@ -1,0 +1,112 @@
+<svg viewBox="0 0 1400 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MCP协议总览地图，分三块：①参与者——Host内含一个或多个MCP Client，每个Client专属连接一个MCP Server，Server可本地(STDIO)或远程(HTTP)运行；②分层——数据层(内层，JSON-RPC 2.0)和传输层(外层，STDIO或Streamable HTTP二选一)，两层都由Host的Client和Server双方各自实现，不是位于两者之间的第三方；③原语——数据层具体承载的三类内容：Tools(可执行动作)、Resources(被动上下文数据)、Prompts(可复用交互模板)，三者并列，互不派生。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .sect { font-weight: 700; font-size: 14.5px; }
+  </style>
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="640" fill="var(--bg)" />
+
+  <!-- ============ ① 参与者 ============ -->
+  <text x="20" y="26" class="sect">① 参与者：Host ↔ Server（Client活在Host内部）</text>
+
+  <rect x="60" y="50" width="220" height="76" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="170" y="75" text-anchor="middle" font-size="13" font-weight="600">AI应用</text>
+  <text x="170" y="92" text-anchor="middle" font-size="10.5" class="soft">= MCP Host</text>
+  <text x="170" y="107" text-anchor="middle" font-size="10.5" class="faint">内含1个或多个MCP Client</text>
+  <text x="170" y="120" text-anchor="middle" font-size="10.5" class="faint">每个Client专属连1个Server</text>
+
+  <line x1="280" y1="88" x2="1120" y2="88" stroke="var(--line)" stroke-width="1.5" marker-end="url(#a1)" marker-start="url(#a1)" />
+  <text x="700" y="78" text-anchor="middle" font-size="11" class="faint">Client维护的专属连接</text>
+
+  <rect x="1120" y="50" width="220" height="76" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1230" y="75" text-anchor="middle" font-size="13" font-weight="600">工具/数据源程序</text>
+  <text x="1230" y="92" text-anchor="middle" font-size="10.5" class="soft">= MCP Server</text>
+  <text x="1230" y="107" text-anchor="middle" font-size="10.5" class="faint">本地(STDIO)：通常服务1个Client</text>
+  <text x="1230" y="120" text-anchor="middle" font-size="10.5" class="faint">远程(HTTP)：可服务多个Client</text>
+
+  <line x1="20" y1="150" x2="1380" y2="150" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4" />
+
+  <!-- ============ ② 分层 ============ -->
+  <text x="20" y="182" class="sect">② 分层：这条连接双方（Client与Server）各自都要实现两层，中间没有第三方</text>
+
+  <!-- outer = transport layer -->
+  <rect x="350" y="205" width="700" height="180" rx="14" fill="none" stroke="var(--sage)" stroke-width="1.5" stroke-dasharray="7 4" />
+  <text x="700" y="228" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--sage)">传输层（外层）——负责"怎么把消息送过去"</text>
+
+  <rect x="380" y="245" width="300" height="60" rx="8" fill="var(--sage-soft)" stroke="var(--sage)" />
+  <text x="530" y="268" text-anchor="middle" font-size="12" font-weight="600">STDIO（本地）</text>
+  <text x="530" y="284" text-anchor="middle" font-size="10.5" class="soft">标准输入输出流，进程间直接通信</text>
+
+  <rect x="720" y="245" width="300" height="60" rx="8" fill="var(--sage-soft)" stroke="var(--sage)" />
+  <text x="870" y="264" text-anchor="middle" font-size="12" font-weight="600">Streamable HTTP（远程）</text>
+  <text x="870" y="279" text-anchor="middle" font-size="10" class="soft">HTTP POST + 可选SSE流式推送</text>
+  <text x="870" y="293" text-anchor="middle" font-size="10" class="soft">需认证：bearer token / API key / OAuth</text>
+
+  <!-- inner = data layer, nested inside -->
+  <rect x="460" y="325" width="480" height="45" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.5" />
+  <text x="700" y="352" text-anchor="middle" font-size="12" font-weight="700">数据层（内层）—— JSON-RPC 2.0：discovery + 原语语义</text>
+
+  <text x="700" y="398" text-anchor="middle" font-size="10.5" class="faint">同一份数据层内容，套不同的传输层外壳——不是"上下叠加"，是"内容不变、换个信封"</text>
+
+  <line x1="20" y1="415" x2="1380" y2="415" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4" />
+
+  <!-- ============ ③ 原语 ============ -->
+  <text x="20" y="447" class="sect">③ 原语：数据层具体承载的3类内容（由Server提供，三者并列，互不派生）</text>
+
+  <line x1="700" y1="370" x2="700" y2="470" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a2)" />
+
+  <rect x="220" y="475" width="280" height="90" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="360" y="500" text-anchor="middle" font-size="13" font-weight="700">Tools</text>
+  <text x="360" y="520" text-anchor="middle" font-size="10.5" class="soft">可执行的动作函数</text>
+  <text x="360" y="536" text-anchor="middle" font-size="10.5" class="soft">（如查数据库、调用搜索）</text>
+  <text x="360" y="552" text-anchor="middle" font-size="9.5" class="faint">主动调用，有返回值</text>
+
+  <rect x="560" y="475" width="280" height="90" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="700" y="500" text-anchor="middle" font-size="13" font-weight="700">Resources</text>
+  <text x="700" y="520" text-anchor="middle" font-size="10.5" class="soft">被动的上下文数据</text>
+  <text x="700" y="536" text-anchor="middle" font-size="10.5" class="soft">（如数据库schema、文件内容）</text>
+  <text x="700" y="552" text-anchor="middle" font-size="9.5" class="faint">不用调用工具，直接可取</text>
+
+  <rect x="900" y="475" width="280" height="90" rx="10" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1040" y="500" text-anchor="middle" font-size="13" font-weight="700">Prompts</text>
+  <text x="1040" y="520" text-anchor="middle" font-size="10.5" class="soft">可复用的交互模板</text>
+  <text x="1040" y="536" text-anchor="middle" font-size="10.5" class="soft">（如few-shot示例、系统提示）</text>
+  <text x="1040" y="552" text-anchor="middle" font-size="9.5" class="faint">不一定跟工具用法有关</text>
+
+  <text x="20" y="600" font-size="10.5" class="faint">三个板块彼此独立：①回答"谁在说话"，②回答"怎么把话送到"，③回答"数据层里具体传了什么内容"</text>
+</svg>

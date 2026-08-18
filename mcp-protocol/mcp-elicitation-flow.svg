@@ -1,0 +1,189 @@
+<svg viewBox="0 0 1500 1100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Elicitation完整流程图，比官方时序图更具体：以巴塞罗那度假预订为例。用户提出需求后，Host把问题和工具清单交给LLM，LLM按Tool Calling学过的约束解码生成tool_use调用bookVacation(destination, dates)，Host翻译成MCP的tools/call发给Server。Server内部业务逻辑判断这笔3000美元的订单需要人工确认，不执行下单，转而返回InputRequiredResult，内含elicitation/create请求和一份表单schema（确认预订、座位偏好、房型、旅行保险）。Client先检查自己是否声明了elicitation能力：没声明的话，规范只保证Server不会发送该请求，接下来怎么处理由Server自行决定；声明了的话，Client渲染出真实表单UI展示给用户，用户手动填写并提交。Client带着用户回应重新发起tools/call，Server这次用人工确认的数据真正执行下单，返回结果，结果经Host包装成tool_result喂回LLM，LLM生成最终自然语言回答返回用户。图中灰色竖条标出LLM在整个elicitation往返期间完全不参与，只有最开始生成tool_use和最后生成回答时才被调用。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --idle: #B7AE9A;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+        --idle: #4A4536;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .phase { font-weight: 700; font-size: 12.5px; }
+  </style>
+  <defs>
+    <marker id="e1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="e2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+    <marker id="e3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1500" height="1100" fill="var(--bg)" />
+
+  <!-- Agent process boundary -->
+  <rect x="260" y="45" width="730" height="1000" rx="14" fill="none" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="6 4" />
+  <text x="625" y="34" text-anchor="middle" font-size="11" class="faint">Agent进程内部（Host内含LLM调用逻辑和MCP Client组件）</text>
+
+  <!-- LLM idle band -->
+  <rect x="505" y="260" width="190" height="680" fill="var(--idle)" opacity="0.35" />
+  <text x="600" y="253" text-anchor="middle" font-size="10" font-weight="700" class="faint">↓ LLM闲置区：Elicitation往返全程不经过LLM ↓</text>
+
+  <!-- lifeline headers -->
+  <rect x="30" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="90" y="81" text-anchor="middle" font-size="13" font-weight="700">User</text>
+
+  <rect x="280" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="340" y="81" text-anchor="middle" font-size="13" font-weight="700">Host</text>
+
+  <rect x="540" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="600" y="81" text-anchor="middle" font-size="13" font-weight="700">LLM</text>
+
+  <rect x="840" y="55" width="120" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="900" y="81" text-anchor="middle" font-size="13" font-weight="700">MCP Client</text>
+
+  <rect x="1240" y="55" width="140" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1310" y="81" text-anchor="middle" font-size="13" font-weight="700">MCP Server</text>
+
+  <!-- lifelines -->
+  <line x1="90" y1="97" x2="90" y2="1035" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="340" y1="97" x2="340" y2="1035" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="600" y1="97" x2="600" y2="1035" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="900" y1="97" x2="900" y2="1035" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+  <line x1="1310" y1="97" x2="1310" y2="1035" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="3 5" />
+
+  <!-- step 1: User -> Host -->
+  <line x1="90" y1="125" x2="340" y2="125" stroke="var(--line)" stroke-width="1.5" marker-end="url(#e1)" />
+  <text x="215" y="119" text-anchor="middle" font-size="10.5">"帮我订这个巴塞罗那度假套餐"</text>
+
+  <!-- step 2: Host -> LLM -->
+  <line x1="340" y1="155" x2="600" y2="155" stroke="var(--line)" stroke-width="1.5" marker-end="url(#e1)" />
+  <text x="470" y="149" text-anchor="middle" font-size="10" class="soft">问题 + 工具清单</text>
+
+  <!-- step 3: LLM -> Host (red, tool_use) -->
+  <line x1="600" y1="185" x2="340" y2="185" stroke="var(--accent-red)" stroke-width="2" marker-end="url(#e3)" />
+  <text x="470" y="179" text-anchor="middle" font-size="10.5" font-weight="700" class="red">tool_use: bookVacation(destination, dates)</text>
+  <text x="470" y="192" text-anchor="middle" font-size="9" class="red">（语法约束解码保证格式，Tool Calling 3.2）</text>
+  <text x="600" y="211" text-anchor="middle" font-size="9" class="faint">（这两个字段，LLM从对话中提取）</text>
+
+  <!-- step 4: Host -> Client -->
+  <line x1="340" y1="245" x2="900" y2="245" stroke="var(--line)" stroke-width="1.5" marker-end="url(#e1)" />
+  <text x="620" y="239" text-anchor="middle" font-size="10" class="soft">Host把tool_use翻译成MCP请求</text>
+
+  <!-- step 5: Client -> Server (sage) -->
+  <line x1="900" y1="280" x2="1310" y2="280" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#e2)" />
+  <text x="1105" y="274" text-anchor="middle" font-size="10" class="mono sage-t">tools/call(id:1, {destination, dates})</text>
+
+  <!-- decision diamond 1: Server -->
+  <polygon points="1310,292 1405,340 1310,388 1215,340" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.3" />
+  <text x="1310" y="335" text-anchor="middle" font-size="10.5" font-weight="700">订单$3,000</text>
+  <text x="1310" y="350" text-anchor="middle" font-size="10.5" font-weight="700">需要人工确认？</text>
+
+  <!-- branch: 是 -> InputRequiredResult -->
+  <line x1="1300" y1="388" x2="905" y2="428" stroke="var(--sage)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#e2)" />
+  <text x="1290" y="408" text-anchor="middle" font-size="10" class="sage-t">是</text>
+  <text x="1100" y="405" text-anchor="middle" font-size="10" class="sage-t">InputRequiredResult</text>
+  <text x="1100" y="419" text-anchor="middle" font-size="9" class="mono sage-t">elicitation/create(schema: confirmBooking, seatPreference, roomType, travelInsurance)</text>
+
+  <!-- decision diamond 2: Client capability -->
+  <polygon points="900,442 1000,490 900,538 800,490" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.3" />
+  <text x="900" y="485" text-anchor="middle" font-size="10" font-weight="700">Client声明了</text>
+  <text x="900" y="500" text-anchor="middle" font-size="10" font-weight="700">elicitation能力？</text>
+
+  <!-- 否 branch -->
+  <line x1="800" y1="490" x2="775" y2="490" stroke="var(--line)" stroke-width="1.3" marker-end="url(#e1)" />
+  <text x="787" y="483" text-anchor="middle" font-size="9.5" class="faint">否</text>
+  <rect x="555" y="445" width="215" height="100" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-dasharray="4 3" />
+  <text x="662" y="463" text-anchor="middle" font-size="9" class="faint">规范只保证：</text>
+  <text x="662" y="477" text-anchor="middle" font-size="9" class="faint">Server MUST NOT向未声明</text>
+  <text x="662" y="491" text-anchor="middle" font-size="9" class="faint">能力的Client发送该请求</text>
+  <text x="662" y="508" text-anchor="middle" font-size="9" class="faint">接下来怎么处理（报错/降级）</text>
+  <text x="662" y="522" text-anchor="middle" font-size="9" class="faint">由Server自行决定，协议未强制</text>
+
+  <!-- 是 branch down to form mockup -->
+  <line x1="900" y1="538" x2="900" y2="558" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#e2)" />
+  <text x="915" y="551" text-anchor="middle" font-size="9.5" class="sage-t">是</text>
+
+  <text x="890" y="552" text-anchor="middle" font-size="9" class="faint">以下字段从未出现在LLM的tool_use参数里</text>
+
+  <!-- form mockup -->
+  <rect x="740" y="560" width="300" height="150" rx="10" fill="var(--surface-2)" stroke="var(--sage)" stroke-width="1.3" />
+  <text x="890" y="580" text-anchor="middle" font-size="10.5" font-weight="700">Client渲染的表单UI（form mode）</text>
+  <text x="760" y="602" font-size="9.5">确认预订（机票+酒店 = $3,000）　[✓]</text>
+  <text x="760" y="624" font-size="9.5">座位偏好　○靠窗　●靠走道</text>
+  <text x="760" y="646" font-size="9.5">房型　[ 海景 ▾ ]</text>
+  <text x="760" y="668" font-size="9.5">旅行保险 (+$150)　[ ]</text>
+  <rect x="855" y="682" width="70" height="20" rx="5" fill="var(--sage)" opacity="0.85" />
+  <text x="890" y="696" text-anchor="middle" font-size="9.5" fill="#F0EBE2">提交</text>
+
+  <!-- Client -> User: present form -->
+  <line x1="900" y1="735" x2="90" y2="735" stroke="var(--line)" stroke-width="1.5" marker-end="url(#e1)" />
+  <text x="495" y="729" text-anchor="middle" font-size="10" class="soft">展示表单，请求确认</text>
+
+  <!-- User -> Client: submit -->
+  <line x1="90" y1="770" x2="900" y2="770" stroke="var(--line)" stroke-width="1.5" marker-end="url(#e1)" />
+  <text x="495" y="764" text-anchor="middle" font-size="9.5" class="soft">填写并提交：action:"accept", content:{confirmBooking:true, seatPreference:"aisle", ...}</text>
+
+  <!-- Client -> Server: retry with inputResponses -->
+  <line x1="900" y1="805" x2="1310" y2="805" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#e2)" />
+  <text x="1105" y="799" text-anchor="middle" font-size="9.5" class="mono sage-t">tools/call(id:2, inputResponses={...})</text>
+
+  <!-- Server executes -->
+  <rect x="1230" y="820" width="160" height="42" rx="6" fill="var(--surface-2)" stroke="var(--line)" />
+  <text x="1310" y="836" text-anchor="middle" font-size="9.5">Server用人工确认的</text>
+  <text x="1310" y="850" text-anchor="middle" font-size="9.5">数据，真正执行下单</text>
+
+  <!-- Server -> Client: content -->
+  <line x1="1310" y1="895" x2="900" y2="895" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#e2)" />
+  <text x="1105" y="889" text-anchor="middle" font-size="10" class="mono sage-t">content[]（预订成功详情）</text>
+
+  <!-- Client -> Host -->
+  <line x1="900" y1="925" x2="340" y2="925" stroke="var(--sage)" stroke-width="1.5" marker-end="url(#e2)" />
+  <text x="620" y="919" text-anchor="middle" font-size="10" class="sage-t">结果传回</text>
+
+  <!-- Host -> LLM -->
+  <line x1="340" y1="955" x2="600" y2="955" stroke="var(--line)" stroke-width="1.5" marker-end="url(#e1)" />
+  <text x="470" y="949" text-anchor="middle" font-size="10" class="soft">包装成tool_result喂回</text>
+
+  <!-- LLM -> Host -->
+  <line x1="600" y1="985" x2="340" y2="985" stroke="var(--line)" stroke-width="1.5" marker-end="url(#e1)" />
+  <text x="470" y="979" text-anchor="middle" font-size="10.5">生成最终自然语言回答</text>
+
+  <!-- Host -> User -->
+  <line x1="340" y1="1015" x2="90" y2="1015" stroke="var(--line)" stroke-width="1.5" marker-end="url(#e1)" />
+  <text x="215" y="1009" text-anchor="middle" font-size="10.5">"已为您预订好巴塞罗那度假套餐！"</text>
+
+  <!-- legend -->
+  <text x="30" y="1058" font-size="10" class="faint">红色：Tool Calling章节学过的机制（LLM如何生成结构化调用）</text>
+  <text x="30" y="1073" font-size="10" class="sage-t">莫兰迪绿：MCP协议消息（JSON-RPC 2.0），含Elicitation的InputRequiredResult往返</text>
+  <text x="30" y="1088" font-size="10" class="faint">灰色竖条：LLM在Elicitation整个往返期间完全空闲，不参与、不知情</text>
+</svg>
