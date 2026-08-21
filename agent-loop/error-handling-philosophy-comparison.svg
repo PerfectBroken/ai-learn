@@ -1,0 +1,173 @@
+<svg viewBox="0 0 1360 1500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OpenAI Agents SDK的error_handlers与Claude Code Agent SDK的ResultMessage.subtype两种错误处理机制对比图，全部内容均引用自官方文档原文，未做推断。上半部分是OpenAI Agents SDK面板：Runner循环运行中触发某个错误条件（如超过max_turns），Runner检查这次运行的error_handlers字典里有没有注册对应kind的handler；如果注册了且handler返回非None，调用handler拿到RunErrorHandlerResult（含final_output和include_in_history），此时不抛出任何异常，Runner.run()正常返回一个RunResult，result.final_output就是handler给的兜底值，若include_in_history为True默认值则这个兜底输出被追加进对话历史并持久化到session，为False则只返回给调用方不进历史；如果没有注册handler或者handler返回None，则抛出对应异常MaxTurnsExceeded或ModelRefusalError或ModelBehaviorError。配了一段真实代码引用：on_max_turns返回RunErrorHandlerResult，Runner.run_sync传入error_handlers字典后直接print(result.final_output)，没有任何try except包裹，因为确实没有异常被抛出。下半部分是Claude Code Agent SDK面板：不管Loop正常结束还是异常结束，SDK都会往消息流里yield一条ResultMessage，用subtype字段标出具体原因，取值包括success、error_max_turns、error_max_budget_usd、error_during_execution、error_max_structured_output_retries，其中只有success这个取值时result字段才可用；调用方在async for message in query(...)这个循环里检查message.subtype，这一步只是被动获知发生了什么，不能阻止接下来的事情发生；官方原文明确写着单次query()调用会先yield这条最终结果消息，然后抛出一个异常，这个raise是故意设计的，如果你的代码需要在这之后继续执行就必须用try块包起来。配了真实代码引用：async for循环里检查message.subtype决定打印内容，循环外面还套了一层except Exception。底部是结论对比框，指出OpenAI这套机制是拦截点，可以让一次运行在调用方看来像正常成功返回、完全不抛异常；Claude Code这套机制是事后诊断，subtype字段告诉你为什么失败，但失败这件事本身、也就是那个异常，已经不可避免地会发生，调用方只能决定失败之后怎么办，比如换一个更大的max_turns重新发起一次全新的query()调用。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --blue: #6E8299;
+      --blue-soft: #D8E0E6;
+      --plum: #8B7091;
+      --plum-soft: #E2D7E3;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+        --blue: #8FA6BC;
+        --blue-soft: #33404A;
+        --plum: #AD93AE;
+        --plum-soft: #3E3540;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .blue-t { fill: var(--blue); }
+    .plum-t { fill: var(--plum); }
+    .step { font-size: 12px; }
+    .note { font-size: 10px; }
+    .quote { font-size: 9.5px; font-style: italic; }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--blue)" />
+    </marker>
+    <marker id="f5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--plum)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1360" height="1500" fill="var(--bg)" />
+  <text x="30" y="32" font-size="16" font-weight="700">error_handlers vs ResultMessage.subtype：两种错误处理机制对比（全部内容引自官方文档，未做推断）</text>
+
+  <!-- ============ PANEL A: OpenAI ============ -->
+  <rect x="30" y="60" width="1300" height="560" rx="14" fill="none" stroke="var(--blue)" stroke-width="1.7" />
+  <text x="50" y="86" font-size="13.5" font-weight="700" class="blue-t">OpenAI Agents SDK：error_handlers 是一个"拦截点"，在异常真正被抛出之前介入</text>
+
+  <rect x="530" y="102" width="300" height="42" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="680" y="128" text-anchor="middle" font-size="11.5" font-weight="700">Runner循环触发错误条件</text>
+
+  <line x1="680" y1="144" x2="680" y2="166" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+
+  <rect x="480" y="166" width="400" height="42" rx="20" fill="var(--surface-2)" stroke="var(--line)" stroke-dasharray="4 3" />
+  <text x="680" y="192" text-anchor="middle" class="step" font-weight="700">error_handlers里注册了对应kind的handler吗？</text>
+
+  <line x1="540" y1="208" x2="280" y2="250" stroke="var(--blue)" stroke-width="1.6" marker-end="url(#f4)" />
+  <text x="380" y="230" text-anchor="middle" class="note blue-t" font-weight="700">已注册 + 返回非None</text>
+
+  <line x1="820" y1="208" x2="1080" y2="250" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+  <text x="980" y="230" text-anchor="middle" class="note soft" font-weight="700">未注册 / handler返回None</text>
+
+  <!-- left: recovered -->
+  <rect x="90" y="250" width="380" height="70" rx="8" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="1.4" />
+  <text x="280" y="272" text-anchor="middle" class="step blue-t" font-weight="700">调用handler(RunErrorHandlerInput)</text>
+  <text x="280" y="290" text-anchor="middle" class="note blue-t mono">拿到 RunErrorHandlerResult(final_output, include_in_history)</text>
+  <text x="280" y="308" text-anchor="middle" class="note blue-t">"return a controlled final output instead of ending the run with the corresponding error"</text>
+
+  <line x1="280" y1="320" x2="280" y2="340" stroke="var(--blue)" stroke-width="1.5" marker-end="url(#f4)" />
+
+  <rect x="90" y="340" width="380" height="70" rx="8" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="1.7" />
+  <text x="280" y="362" text-anchor="middle" class="step blue-t" font-weight="700">不抛出任何异常</text>
+  <text x="280" y="380" text-anchor="middle" class="note blue-t">Runner.run()正常返回一个RunResult</text>
+  <text x="280" y="398" text-anchor="middle" class="note blue-t mono">result.final_output = handler给的兜底值</text>
+
+  <line x1="280" y1="410" x2="280" y2="430" stroke="var(--blue)" stroke-width="1.5" marker-end="url(#f4)" />
+
+  <rect x="90" y="430" width="380" height="60" rx="8" fill="var(--surface-3)" stroke="var(--blue)" stroke-dasharray="3 3" />
+  <text x="280" y="450" text-anchor="middle" class="note blue-t mono" font-weight="700">include_in_history 默认 True</text>
+  <text x="280" y="468" text-anchor="middle" class="note blue-t">True→追加进历史+持久化到session；False→只返回给调用方，不进历史</text>
+
+  <!-- right: raised -->
+  <rect x="890" y="250" width="380" height="70" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="1080" y="278" text-anchor="middle" class="step" font-weight="700">抛出对应异常</text>
+  <text x="1080" y="298" text-anchor="middle" class="note soft mono">MaxTurnsExceeded / ModelRefusalError / ModelBehaviorError</text>
+  <text x="1080" y="314" text-anchor="middle" class="note faint">这是没配置error_handlers时的默认行为</text>
+
+  <!-- code evidence box -->
+  <rect x="90" y="510" width="1180" height="96" rx="8" fill="var(--surface-3)" stroke="var(--blue)" stroke-width="1.3" />
+  <text x="106" y="530" class="note blue-t mono" font-weight="700">代码证据（官方原文示例）：</text>
+  <text x="106" y="548" class="note mono soft">def on_max_turns(_data): return RunErrorHandlerResult(final_output="...", include_in_history=False)</text>
+  <text x="106" y="566" class="note mono soft">result = Runner.run_sync(agent, ..., max_turns=3, error_handlers={"max_turns": on_max_turns})</text>
+  <text x="106" y="584" class="note mono blue-t" font-weight="700">print(result.final_output)  # 没有任何try/except——因为确实没有异常被抛出</text>
+
+  <!-- ============ PANEL B: Claude Code ============ -->
+  <rect x="30" y="650" width="1300" height="600" rx="14" fill="none" stroke="var(--plum)" stroke-width="1.7" />
+  <text x="50" y="676" font-size="13.5" font-weight="700" class="plum-t">Claude Code Agent SDK：ResultMessage.subtype 是"事后诊断"，不能阻止异常发生</text>
+
+  <rect x="530" y="692" width="300" height="42" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="680" y="718" text-anchor="middle" font-size="11.5" font-weight="700">Loop结束（正常或异常原因）</text>
+
+  <line x1="680" y1="734" x2="680" y2="756" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+
+  <rect x="430" y="756" width="500" height="70" rx="8" fill="var(--plum-soft)" stroke="var(--plum)" stroke-width="1.5" />
+  <text x="680" y="778" text-anchor="middle" class="step plum-t" font-weight="700">SDK往消息流里yield一条ResultMessage</text>
+  <text x="680" y="796" text-anchor="middle" class="note plum-t mono">subtype ∈ {success, error_max_turns, error_max_budget_usd,</text>
+  <text x="680" y="812" text-anchor="middle" class="note plum-t mono">error_during_execution, error_max_structured_output_retries}</text>
+
+  <line x1="680" y1="826" x2="680" y2="848" stroke="var(--plum)" stroke-width="1.5" marker-end="url(#f5)" />
+
+  <rect x="430" y="848" width="500" height="56" rx="8" fill="var(--surface-3)" stroke="var(--plum)" stroke-width="1.4" />
+  <text x="680" y="868" text-anchor="middle" class="step plum-t" font-weight="700">调用方在 async for 循环里检查 message.subtype</text>
+  <text x="680" y="886" text-anchor="middle" class="note plum-t">被动获知发生了什么——这一步不能阻止接下来的事情发生</text>
+
+  <line x1="680" y1="904" x2="680" y2="926" stroke="var(--plum)" stroke-width="1.7" marker-end="url(#f5)" />
+
+  <rect x="380" y="926" width="600" height="90" rx="8" fill="var(--plum-soft)" stroke="var(--plum)" stroke-width="1.8" />
+  <text x="680" y="950" text-anchor="middle" class="step plum-t" font-weight="700">query()生成器接下来照样会抛出一个异常</text>
+  <text x="680" y="972" text-anchor="middle" class="quote plum-t">"A single-shot query() call yields the final result message,</text>
+  <text x="680" y="988" text-anchor="middle" class="quote plum-t">then raises an error... The raise is intentional."</text>
+  <text x="680" y="1006" text-anchor="middle" class="note plum-t" font-weight="700">必须用try块包起来才能在这之后继续执行</text>
+
+  <!-- result field availability note -->
+  <rect x="90" y="770" width="300" height="90" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-dasharray="3 3" />
+  <text x="240" y="792" text-anchor="middle" class="note soft" font-weight="700">result字段可用性</text>
+  <text x="240" y="812" text-anchor="middle" class="note soft mono">subtype=="success"</text>
+  <text x="240" y="828" text-anchor="middle" class="note soft">→ result字段有值</text>
+  <text x="240" y="846" text-anchor="middle" class="note soft">其余4种subtype → 无</text>
+  <line x1="390" y1="800" x2="430" y2="790" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="2 3" marker-end="url(#f1)" />
+
+  <!-- code evidence box -->
+  <rect x="90" y="1040" width="1180" height="130" rx="8" fill="var(--surface-3)" stroke="var(--plum)" stroke-width="1.3" />
+  <text x="106" y="1060" class="note plum-t mono" font-weight="700">代码证据（官方原文示例）：</text>
+  <text x="106" y="1078" class="note mono soft">try:</text>
+  <text x="106" y="1094" class="note mono soft">    async for message in query(prompt="Summarize this project"):</text>
+  <text x="106" y="1110" class="note mono soft">        if isinstance(message, ResultMessage):</text>
+  <text x="106" y="1126" class="note mono soft">            if message.subtype == "success": print(message.result)</text>
+  <text x="106" y="1142" class="note mono soft">            else: print(f"Stopped: {message.subtype}")</text>
+  <text x="106" y="1158" class="note mono plum-t" font-weight="700">except Exception as error:  # subtype检查完全不影响这里还会不会触发</text>
+
+  <!-- bottom takeaway -->
+  <rect x="30" y="1270" width="1300" height="200" rx="12" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.3" />
+  <text x="50" y="1296" font-size="13" font-weight="700">两种哲学的本质区别</text>
+  <text x="50" y="1322" font-size="11" class="soft"><tspan font-weight="700" fill="var(--blue)">OpenAI：error_handlers是运行内部的"拦截点"</tspan>——错误条件触发时，Runner先看你有没有注册处理器，有就调用它、拿到一个替代结果，</text>
+  <text x="50" y="1342" font-size="11" class="soft">整次运行可以在调用方看来"像什么都没发生过一样正常返回"，完全不抛异常，调用方代码里甚至不需要写try/except。</text>
+  <text x="50" y="1368" font-size="11" class="soft"><tspan font-weight="700" fill="var(--plum)">Claude Code：subtype是运行结束之后的"事后诊断"</tspan>——不管你的代码怎么检查`subtype`字段，Loop该抛的异常照样会抛，</text>
+  <text x="50" y="1388" font-size="11" class="soft">`subtype`只回答"为什么失败"，不改变"失败了"这个既成事实；调用方能做的只是决定失败之后怎么办（比如换更大的max_turns、开一次全新的query()）。</text>
+  <text x="50" y="1414" font-size="11" font-weight="700" class="ink">换句话说：OpenAI把"要不要把这次失败当成失败"的决定权交给了开发者（可以选择让它看起来像成功）；Claude Code把这个决定权收在自己手里</text>
+  <text x="50" y="1434" font-size="11" font-weight="700" class="ink">（失败就是失败，异常一定会抛），开发者只能决定收到这个"诊断结果"之后，下一步要不要重试。</text>
+</svg>

@@ -1,0 +1,250 @@
+<svg viewBox="0 0 1400 1950" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OpenClaw Agent Loop从触发到结束的完整流程图（已按源码核实修正结构）。入口：Gateway RPC的agent/agent.wait方法，或CLI命令openclaw agent。①agent这个RPC校验参数、解析session、持久化session元数据，立刻异步返回runId和acceptedAt，不等真正执行完。②agentCommand接管，解析model/thinking/verbose/trace默认值、加载skills快照，然后调用runEmbeddedAgent。③runEmbeddedAgent是一个大容器，内部按真实源码验证过的顺序依次是：先做队列排队与写入方声明（进入session lane，可叠加global lane，接纳后记录activeWriterRunId声明）；然后解析model和auth profile，这一步之前会先跑before_model_resolve插件hook（源码位置embedded-agent-runner/run/setup.ts，注释原文run before_model_resolve hooks early so plugins can override the provider/model before resolveModel）；然后构建session，包括解析创建workspace（可能沙箱化）、注入skills、解析bootstrap上下文文件、准备transcript写入目标和写入方声明；然后组装Prompt（base prompt+skills prompt+bootstrap上下文+本次覆盖项，强制模型限长并预留压缩token），这一步前后分别触发before_prompt_build（注入前后缀上下文或收窄工具面）和before_agent_reply（LLM调用前，可让插件接管整回合或静默）两个hook；然后进入核心工具使用小循环：模型推理流式输出assistant增量，若有工具请求则执行工具（before_tool_call/after_tool_call拦截，tool_result_persist在写入transcript前转换结果），若上下文快满则触发compaction（before_compaction/after_compaction，可能触发重试重置内存缓冲区），循环判断还有没有工具调用，有则回到模型推理，没有则跳出循环；循环结束后在runEmbeddedAgent内部完成Reply整形，拼装文本+推理+工具摘要+错误文本，过滤NO_REPLY静默token，去重消息类工具输出，最终返回payload和用量元数据。runEmbeddedAgent这整个容器左侧标出运行超时在此强制生效，超时即中止。runEmbeddedAgent返回之后，④agentCommand做收尾：如果内嵌循环还没自己发出生命周期结束或报错事件，这里兜底补发一个，agent_end hook在完成后触发带上最终消息列表和运行元数据。⑤subscribeEmbeddedAgentSession把运行时事件桥接成lifecycle: end或error事件。⑥三路分叉：agent.wait的调用方收到status/startedAt/endedAt/error返回；事件流被Gateway投影进只含元数据的审计台账；聊天渠道把缓冲的delta消息收尾成一条chat final消息。图左侧另有一条贯穿runEmbeddedAgent容器附近的红色异常退出路径，列出四种提前结束的方式：Agent超时中止、AbortSignal取消、Gateway断开连接或RPC超时、agent.wait自己超时（仅调用方放弃等待，不会真正停止底层运行）。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --blue: #6E8299;
+      --blue-soft: #D8E0E6;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+        --blue: #8FA6BC;
+        --blue-soft: #33404A;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .blue-t { fill: var(--blue); }
+    .step { font-size: 12px; }
+    .note { font-size: 10px; }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+    <marker id="f3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+    <marker id="f4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--blue)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="1950" fill="var(--bg)" />
+  <text x="30" y="32" font-size="16" font-weight="700">OpenClaw Agent Loop：从触发到结束的完整机制（已按源码核实修正）</text>
+  <text x="30" y="52" font-size="10.5" class="faint">中列＝时间顺序步骤；右侧＝插件hooks挂接点（before_model_resolve的位置已按gh源码 embedded-agent-runner/run/setup.ts 核实修正）；左侧＝并发控制/超时/异常退出</text>
+
+  <!-- entry -->
+  <rect x="470" y="76" width="460" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="102" text-anchor="middle" font-size="12.5" font-weight="700">入口：Gateway RPC（agent / agent.wait） 或 CLI（openclaw agent）</text>
+
+  <line x1="700" y1="118" x2="700" y2="140" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+
+  <!-- step 1 -->
+  <rect x="440" y="140" width="520" height="60" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="163" text-anchor="middle" font-size="12" font-weight="700">①agent RPC：校验参数→解析session→持久化元数据</text>
+  <text x="700" y="182" text-anchor="middle" class="note soft mono">立刻异步返回 {runId, acceptedAt}，不等真正跑完</text>
+
+  <line x1="700" y1="200" x2="700" y2="222" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+
+  <!-- step 2 -->
+  <rect x="440" y="222" width="520" height="58" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="245" text-anchor="middle" font-size="12" font-weight="700">②agentCommand接管这一回合</text>
+  <text x="700" y="264" text-anchor="middle" class="note soft">解析model/thinking/verbose/trace默认值，加载skills快照 → 调用runEmbeddedAgent</text>
+
+  <line x1="700" y1="280" x2="700" y2="302" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+
+  <!-- step 3 big container: runEmbeddedAgent -->
+  <rect x="330" y="302" width="1040" height="1130" rx="14" fill="none" stroke="var(--accent-red)" stroke-width="1.7" />
+  <text x="850" y="328" text-anchor="middle" font-size="13.5" font-weight="700" class="red">③runEmbeddedAgent（一次调用，内部完整跑完排队→解析→组装→循环→整形→返回）</text>
+
+  <!-- concurrency box inside, top -->
+  <rect x="360" y="344" width="480" height="70" rx="8" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="1.3" />
+  <text x="600" y="366" text-anchor="middle" font-size="11.5" font-weight="700" class="blue-t">排队与写入方声明</text>
+  <text x="600" y="384" text-anchor="middle" class="note blue-t">进session lane（可叠加global lane）串行化</text>
+  <text x="600" y="400" text-anchor="middle" class="note blue-t mono">接纳后记录 activeWriterRunId 声明（流式输出前）</text>
+
+  <line x1="600" y1="414" x2="600" y2="434" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+
+  <!-- model+auth resolve -->
+  <rect x="360" y="434" width="480" height="56" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="457" text-anchor="middle" font-size="12" font-weight="700">解析 model + auth profile</text>
+  <text x="600" y="474" text-anchor="middle" class="note soft">源码验证：embedded-agent-runner/run/setup.ts</text>
+
+  <!-- hooks box: before_model_resolve, right of this step, precisely wired -->
+  <rect x="880" y="430" width="470" height="64" rx="8" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.3" />
+  <text x="1115" y="450" text-anchor="middle" class="note sage-t mono" font-weight="700">before_model_resolve （已按源码修正位置）</text>
+  <text x="898" y="468" class="note sage-t">源码注释原文："Run before_model_resolve hooks</text>
+  <text x="898" y="482" class="note sage-t">early so plugins can override the provider/model</text>
+  <text x="898" y="496" class="note sage-t">before resolveModel()" —— 挂在这一步，不是②之前</text>
+  <line x1="880" y1="462" x2="840" y2="462" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f2)" />
+
+  <line x1="600" y1="490" x2="600" y2="510" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+
+  <!-- build session: workspace/skills/bootstrap -->
+  <rect x="360" y="510" width="480" height="80" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="532" text-anchor="middle" font-size="12" font-weight="700">构建session：workspace / skills / bootstrap</text>
+  <text x="600" y="550" text-anchor="middle" class="note soft">解析/创建workspace（可能沙箱化）→注入skills</text>
+  <text x="600" y="566" text-anchor="middle" class="note soft">解析bootstrap上下文文件→准备transcript目标+写入方声明</text>
+
+  <line x1="600" y1="590" x2="600" y2="610" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+
+  <!-- prompt assembly -->
+  <rect x="360" y="610" width="480" height="72" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="632" text-anchor="middle" font-size="12" font-weight="700">Prompt组装</text>
+  <text x="600" y="650" text-anchor="middle" class="note soft">base prompt+skills prompt+bootstrap+本次覆盖项</text>
+  <text x="600" y="666" text-anchor="middle" class="note soft">强制模型限长，为compaction预留token</text>
+
+  <rect x="880" y="600" width="470" height="90" rx="8" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.3" />
+  <text x="898" y="622" class="note sage-t mono" font-weight="700">before_prompt_build</text>
+  <text x="898" y="638" class="note sage-t">已有messages，可注入前后缀上下文</text>
+  <text x="898" y="654" class="note sage-t">或用toolsAllow收窄这次提交的工具面</text>
+  <text x="898" y="674" class="note sage-t mono" font-weight="700">before_agent_reply</text>
+  <text x="898" y="690" class="note sage-t">紧接着、真正调LLM之前；插件可接管整回合</text>
+  <line x1="880" y1="640" x2="840" y2="640" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f2)" />
+
+  <line x1="600" y1="682" x2="600" y2="702" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+
+  <!-- inner tool-use loop -->
+  <rect x="380" y="702" width="440" height="330" rx="12" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="6 4" />
+  <text x="600" y="726" text-anchor="middle" font-size="12" font-weight="700">核心工具使用小循环</text>
+
+  <rect x="410" y="740" width="380" height="44" rx="7" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="600" y="767" text-anchor="middle" class="step">模型推理，流式输出assistant增量</text>
+
+  <line x1="600" y1="784" x2="600" y2="802" stroke="var(--line)" stroke-width="1.3" marker-end="url(#f1)" />
+
+  <rect x="410" y="802" width="380" height="56" rx="7" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="600" y="822" text-anchor="middle" class="step">有工具请求 → 执行工具</text>
+  <text x="600" y="840" text-anchor="middle" class="note soft mono">before/after_tool_call；tool_result_persist</text>
+
+  <line x1="600" y1="858" x2="600" y2="876" stroke="var(--line)" stroke-width="1.3" marker-end="url(#f1)" />
+
+  <rect x="410" y="876" width="380" height="56" rx="7" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="600" y="896" text-anchor="middle" class="step">上下文快满 → 触发compaction</text>
+  <text x="600" y="914" text-anchor="middle" class="note soft mono">before/after_compaction；可能重试重置缓冲</text>
+
+  <line x1="600" y1="932" x2="600" y2="948" stroke="var(--line)" stroke-width="1.3" marker-end="url(#f1)" />
+
+  <rect x="440" y="948" width="320" height="38" rx="19" fill="var(--surface-2)" stroke="var(--line)" stroke-dasharray="4 3" />
+  <text x="600" y="972" text-anchor="middle" class="note" font-weight="700">还有工具调用？</text>
+
+  <path d="M 440,967 C 400,967 400,760 410,760" fill="none" stroke="var(--line)" stroke-width="1.3" stroke-dasharray="2 4" marker-end="url(#f1)" />
+  <text x="605" y="1010" text-anchor="middle" class="note soft">否 → 跳出循环</text>
+
+  <rect x="880" y="720" width="470" height="80" rx="8" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.3" />
+  <text x="898" y="742" class="note sage-t mono" font-weight="700">before/after_tool_call · tool_result_persist</text>
+  <text x="898" y="758" class="note sage-t mono" font-weight="700">before/after_compaction</text>
+  <text x="898" y="778" class="note sage-t">这四个/两组hook挂在小循环内部，管的是</text>
+  <text x="898" y="794" class="note sage-t">"每一次子动作"，比外面三道回合级关卡粒度更细</text>
+  <line x1="880" y1="760" x2="820" y2="820" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f2)" />
+
+  <line x1="600" y1="1032" x2="600" y2="1050" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+
+  <!-- reply shaping inside runEmbeddedAgent -->
+  <rect x="360" y="1050" width="480" height="70" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="1073" text-anchor="middle" font-size="12" font-weight="700">Reply整形（仍在runEmbeddedAgent内部）</text>
+  <text x="600" y="1092" text-anchor="middle" class="note soft">拼装文本+推理+工具摘要+错误文本，过滤NO_REPLY、去重</text>
+
+  <line x1="600" y1="1120" x2="600" y2="1136" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <text x="600" y="1156" text-anchor="middle" font-size="11.5" font-weight="700" class="mono">返回 payload + usage元数据（runEmbeddedAgent结束）</text>
+
+  <!-- timeout note left of container -->
+  <rect x="30" y="600" width="280" height="90" rx="8" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-width="1.3" />
+  <text x="170" y="622" text-anchor="middle" font-size="11.5" font-weight="700" class="red">运行超时强制生效</text>
+  <text x="48" y="642" class="note red">整个③容器受run timeout约束</text>
+  <text x="48" y="658" class="note red">（agent runtime层，默认48小时）</text>
+  <text x="48" y="674" class="note red">超时→中止(abort)，不是优雅结束</text>
+  <line x1="310" y1="645" x2="360" y2="645" stroke="var(--accent-red)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f3)" />
+
+  <line x1="700" y1="1432" x2="700" y2="1454" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+
+  <!-- step 4: agentCommand wraps up -->
+  <rect x="440" y="1454" width="520" height="70" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="1477" text-anchor="middle" font-size="12" font-weight="700">④agentCommand收尾</text>
+  <text x="700" y="1496" text-anchor="middle" class="note soft">若内嵌循环还没自己发lifecycle事件，这里兜底补发</text>
+  <text x="700" y="1512" text-anchor="middle" class="note soft mono">agent_end hook触发（带最终消息列表+运行元数据）</text>
+
+  <line x1="700" y1="1524" x2="700" y2="1546" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+
+  <!-- step 5 -->
+  <rect x="440" y="1546" width="520" height="46" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="1574" text-anchor="middle" font-size="12" font-weight="700">⑤subscribeEmbeddedAgentSession → 发出lifecycle: end/error事件</text>
+
+  <line x1="700" y1="1592" x2="700" y2="1614" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+
+  <!-- step 6 three-way fork -->
+  <text x="700" y="1632" text-anchor="middle" font-size="12.5" font-weight="700">⑥三路分叉</text>
+
+  <line x1="700" y1="1638" x2="270" y2="1678" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <line x1="700" y1="1638" x2="700" y2="1678" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <line x1="700" y1="1638" x2="1130" y2="1678" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+
+  <rect x="90" y="1678" width="360" height="70" rx="8" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="270" y="1700" text-anchor="middle" class="step" font-weight="700">agent.wait调用方</text>
+  <text x="270" y="1718" text-anchor="middle" class="note soft mono">收到{status, startedAt,</text>
+  <text x="270" y="1734" text-anchor="middle" class="note soft mono">endedAt, error?}</text>
+
+  <rect x="520" y="1678" width="360" height="70" rx="8" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="700" y="1700" text-anchor="middle" class="step" font-weight="700">Gateway审计台账</text>
+  <text x="700" y="1718" text-anchor="middle" class="note soft">仅元数据投影（来源+结果码）</text>
+  <text x="700" y="1734" text-anchor="middle" class="note soft">不含prompt/消息/参数/结果</text>
+
+  <rect x="950" y="1678" width="360" height="70" rx="8" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="1130" y="1700" text-anchor="middle" class="step" font-weight="700">聊天渠道</text>
+  <text x="1130" y="1718" text-anchor="middle" class="note soft">缓冲的delta消息</text>
+  <text x="1130" y="1734" text-anchor="middle" class="note soft mono">→收尾成一条chat final</text>
+
+  <!-- abort exit paths -->
+  <rect x="30" y="1780" width="1340" height="160" rx="12" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-width="1.6" />
+  <text x="50" y="1806" font-size="13" font-weight="700" class="red">哪些情况会让流程在③附近提前结束（不是正常走到⑥）</text>
+
+  <rect x="60" y="1820" width="300" height="100" rx="8" fill="var(--surface-3)" stroke="var(--accent-red)" />
+  <text x="210" y="1844" text-anchor="middle" class="step red" font-weight="700">Agent超时（中止）</text>
+  <text x="210" y="1862" text-anchor="middle" class="note soft">对应上面标出的run timeout</text>
+  <text x="210" y="1878" text-anchor="middle" class="note soft">硬性abort，不是等它自己收尾</text>
+
+  <rect x="380" y="1820" width="300" height="100" rx="8" fill="var(--surface-3)" stroke="var(--accent-red)" />
+  <text x="530" y="1844" text-anchor="middle" class="step red" font-weight="700">AbortSignal（取消）</text>
+  <text x="530" y="1862" text-anchor="middle" class="note soft">调用方主动取消</text>
+  <text x="530" y="1878" text-anchor="middle" class="note soft">跟超时是两条不同触发路径</text>
+
+  <rect x="700" y="1820" width="300" height="100" rx="8" fill="var(--surface-3)" stroke="var(--accent-red)" />
+  <text x="850" y="1844" text-anchor="middle" class="step red" font-weight="700">Gateway断开/RPC超时</text>
+  <text x="850" y="1862" text-anchor="middle" class="note soft">连接层面的中断</text>
+  <text x="850" y="1878" text-anchor="middle" class="note soft">不是agent runtime自己判断的</text>
+
+  <rect x="1020" y="1820" width="320" height="100" rx="8" fill="var(--surface-3)" stroke="var(--accent-red)" />
+  <text x="1180" y="1844" text-anchor="middle" class="step red" font-weight="700">agent.wait自己超时</text>
+  <text x="1180" y="1862" text-anchor="middle" class="note soft">仅调用方放弃等待（默认30秒）</text>
+  <text x="1180" y="1878" text-anchor="middle" class="note soft" font-weight="700">不会真正停止底层③的运行</text>
+</svg>

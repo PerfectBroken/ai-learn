@@ -1,0 +1,160 @@
+<svg viewBox="0 0 1300 1120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LangChain create_agent真实节点与边流程图，以注册了一个同时实现before_agent/before_model/after_model/after_agent四个钩子的middleware M为例。节点从上到下依次是：START；M.before_agent（entry_node，整个agent只跑一次的入口，虚线框标出这是middleware贡献的可选节点）；M.before_model（loop_entry_node，循环每一轮回到的位置）；model（固定存在的核心节点）；tools（仅在传了tools参数时存在）；M.after_model（loop_exit_node，循环每一轮结束的位置）；M.after_agent（exit_node，整个agent只跑一次的出口）；END。边的连接：START到M.before_agent是固定边；M.before_agent到M.before_model是条件边，默认走这条，但middleware可以让它直接跳到exit_node（M.after_agent）提前结束整个agent；M.before_model到model同样是条件边，默认走这条，也可以跳到exit_node提前结束；model到M.after_model是唯一一条纯粹的固定边，不经过判断；M.after_model到下一步是三选一条件边，命中tool_calls就去tools，没有tool_calls就去exit_node（M.after_agent）完成整个agent，如果middleware在after_model钩子里人为注入了工具消息（比如人在回路场景）或者需要重新生成结构化输出，则跳回loop_entry_node（M.before_model）重新走一轮；tools到下一步是二选一条件边，正常情况回到loop_entry_node（M.before_model）开始下一轮循环，但如果被执行的工具标了return_direct或者存在结构化输出工具，则直接去exit_node（M.after_agent）；M.after_agent到END是条件边，默认走这条结束整个agent，但也可以跳回loop_entry_node（M.before_model）重新进入循环。图右侧有一个补充说明框，指出如果注册多个middleware，before_agent和before_model这两类钩子会按注册顺序依次串联（第一个的钩子离图的入口最近），而after_model和after_agent这两类钩子会按注册顺序的反序串联（最后注册的钩子离model最近，第一个注册的钩子离图的出口最近），这条规则本身在源码里有体现但没有画出多middleware的完整图，只用文字说明。图底部还有一条说明：如果一个middleware都不注册，entry_node/loop_entry_node退化成model，loop_exit_node也退化成model，exit_node退化成END，整张图会坍缩回最简单的model与tools两节点循环。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --blue: #6E8299;
+      --blue-soft: #D8E0E6;
+      --plum: #8B7091;
+      --plum-soft: #E2D7E3;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+        --blue: #8FA6BC;
+        --blue-soft: #33404A;
+        --plum: #AD93AE;
+        --plum-soft: #3E3540;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .blue-t { fill: var(--blue); }
+    .plum-t { fill: var(--plum); }
+    .step { font-size: 12px; }
+    .note { font-size: 10px; }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--blue)" />
+    </marker>
+    <marker id="f3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1300" height="1120" fill="var(--bg)" />
+  <text x="30" y="32" font-size="16" font-weight="700">create_agent 真实节点/边流程图（以一个实现全部4个钩子的middleware M为例）</text>
+  <text x="30" y="52" font-size="10.5" class="faint">虚线框＝middleware贡献的可选节点（M一个都不注册时全部消失）；蓝色箭头＝固定边；黑色箭头＝条件边的主路径；右侧红字＝条件边里"跳出常规路径"的分支</text>
+
+  <!-- START -->
+  <rect x="500" y="70" width="200" height="40" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="95" text-anchor="middle" font-size="12.5" font-weight="700" class="mono">START</text>
+
+  <line x1="600" y1="110" x2="600" y2="132" stroke="var(--blue)" stroke-width="1.8" marker-end="url(#f2)" />
+  <text x="660" y="126" class="note blue-t">固定边</text>
+
+  <!-- M.before_agent -->
+  <rect x="470" y="132" width="260" height="56" rx="8" fill="none" stroke="var(--plum)" stroke-width="1.6" stroke-dasharray="6 4" />
+  <text x="600" y="155" text-anchor="middle" font-size="12" font-weight="700" class="plum-t mono">M.before_agent</text>
+  <text x="600" y="173" text-anchor="middle" class="note plum-t">entry_node（整个agent只跑一次）</text>
+
+  <line x1="600" y1="188" x2="600" y2="210" stroke="var(--ink)" stroke-width="1.6" marker-end="url(#f1)" />
+  <text x="655" y="204" class="note soft">条件边(默认)</text>
+  <path d="M 730,160 C 1080,160 1080,600 840,600" fill="none" stroke="var(--accent-red)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f3)" />
+  <text x="740" y="152" text-anchor="start" class="note red">可跳到exit_node，提前结束整个agent</text>
+
+  <!-- M.before_model -->
+  <rect x="470" y="210" width="260" height="56" rx="8" fill="none" stroke="var(--plum)" stroke-width="1.6" stroke-dasharray="6 4" />
+  <text x="600" y="233" text-anchor="middle" font-size="12" font-weight="700" class="plum-t mono">M.before_model</text>
+  <text x="600" y="251" text-anchor="middle" class="note plum-t">loop_entry_node（每轮循环回到这）</text>
+
+  <line x1="600" y1="266" x2="600" y2="288" stroke="var(--ink)" stroke-width="1.6" marker-end="url(#f1)" />
+  <text x="655" y="282" class="note soft">条件边(默认)</text>
+  <path d="M 730,225 C 1000,225 1000,600 770,600" fill="none" stroke="var(--accent-red)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f3)" />
+  <text x="740" y="217" text-anchor="start" class="note red">同样可跳到exit_node</text>
+
+  <!-- model -->
+  <rect x="490" y="288" width="220" height="50" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.6" />
+  <text x="600" y="318" text-anchor="middle" font-size="13" font-weight="700" class="mono">model（固定存在）</text>
+
+  <line x1="600" y1="338" x2="600" y2="360" stroke="var(--blue)" stroke-width="1.8" marker-end="url(#f2)" />
+  <text x="660" y="354" class="note blue-t">唯一一条纯固定边（不判断）</text>
+
+  <!-- M.after_model -->
+  <rect x="470" y="360" width="260" height="56" rx="8" fill="none" stroke="var(--plum)" stroke-width="1.6" stroke-dasharray="6 4" />
+  <text x="600" y="383" text-anchor="middle" font-size="12" font-weight="700" class="plum-t mono">M.after_model</text>
+  <text x="600" y="401" text-anchor="middle" class="note plum-t">loop_exit_node（每轮循环结束在这）</text>
+
+  <!-- three-way conditional from after_model -->
+  <line x1="530" y1="416" x2="330" y2="470" stroke="var(--ink)" stroke-width="1.6" marker-end="url(#f1)" />
+  <text x="380" y="440" text-anchor="middle" class="note soft" font-weight="700">有tool_calls</text>
+
+  <path d="M 730,388 C 920,388 920,600 700,600" fill="none" stroke="var(--ink)" stroke-width="1.6" marker-end="url(#f1)" />
+  <text x="740" y="378" text-anchor="start" class="note soft" font-weight="700">没有tool_calls</text>
+
+  <path d="M 470,388 C 250,388 250,238 470,238" fill="none" stroke="var(--accent-red)" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#f3)" />
+  <text x="330" y="310" text-anchor="middle" class="note red" font-weight="700">HITL注入了工具消息 /</text>
+  <text x="330" y="324" text-anchor="middle" class="note red" font-weight="700">需要重新生成结构化输出</text>
+  <text x="330" y="338" text-anchor="middle" class="note red">→ 跳回loop_entry_node</text>
+
+  <!-- tools -->
+  <rect x="220" y="470" width="220" height="50" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.6" />
+  <text x="330" y="500" text-anchor="middle" font-size="13" font-weight="700" class="mono">tools</text>
+  <text x="330" y="530" text-anchor="middle" class="note faint">（仅在传了tools参数时存在）</text>
+
+  <path d="M 290,470 C 150,470 150,220 470,220" fill="none" stroke="var(--ink)" stroke-width="1.6" marker-end="url(#f1)" />
+  <text x="188" y="345" text-anchor="middle" class="note soft" font-weight="700" transform="rotate(90 188 345)">正常 → 回loop_entry_node（进入点在HITL跳转线上方，避免交叉）</text>
+
+  <path d="M 440,490 C 650,490 650,600 730,600" fill="none" stroke="var(--accent-red)" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#f3)" />
+  <text x="560" y="560" text-anchor="middle" class="note red" font-weight="700">工具标了return_direct /</text>
+  <text x="560" y="574" text-anchor="middle" class="note red" font-weight="700">有结构化输出工具 → 直接去exit_node</text>
+
+  <!-- M.after_agent -->
+  <rect x="620" y="600" width="260" height="56" rx="8" fill="none" stroke="var(--plum)" stroke-width="1.6" stroke-dasharray="6 4" />
+  <text x="750" y="623" text-anchor="middle" font-size="12" font-weight="700" class="plum-t mono">M.after_agent</text>
+  <text x="750" y="641" text-anchor="middle" class="note plum-t">exit_node（整个agent只跑一次）</text>
+
+  <line x1="750" y1="656" x2="750" y2="678" stroke="var(--ink)" stroke-width="1.6" marker-end="url(#f1)" />
+  <text x="810" y="672" class="note soft">条件边(默认)</text>
+  <path d="M 880,645 C 1180,645 1180,255 730,255" fill="none" stroke="var(--accent-red)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f3)" />
+  <text x="890" y="633" text-anchor="start" class="note red">也可以跳回loop_entry_node，重新进入循环</text>
+
+  <!-- END -->
+  <rect x="650" y="678" width="200" height="40" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="750" y="703" text-anchor="middle" font-size="12.5" font-weight="700" class="mono">END</text>
+
+  <!-- side panel: multi-middleware chaining rule -->
+  <rect x="60" y="760" width="1180" height="200" rx="12" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.3" />
+  <text x="80" y="786" font-size="13" font-weight="700">如果注册了多个middleware，链怎么接（源码验证过，没有画完整图，用文字说明）</text>
+  <text x="80" y="812" font-size="10.5" class="soft"><tspan font-weight="700" fill="var(--ink)">`before_agent`和`before_model`——按注册顺序串联</tspan>：`M1.before_agent → M2.before_agent → ... → 最后一个.before_agent → loop_entry_node`，</text>
+  <text x="80" y="832" font-size="10.5" class="soft">第一个注册的middleware离图的入口最近。`before_model`同理。</text>
+  <text x="80" y="858" font-size="10.5" class="soft"><tspan font-weight="700" fill="var(--ink)">`after_model`和`after_agent`——按注册顺序的反序串联</tspan>：`model → 最后一个.after_model → ... → 第一个.after_model`，</text>
+  <text x="80" y="878" font-size="10.5" class="soft">最后注册的middleware离`model`最近，第一个注册的离图的出口（tools判断/exit_node）最近。`after_agent`同理反序，最后连到`END`。</text>
+  <text x="80" y="904" font-size="10.5" class="faint">（`before_X`正序、`after_X`倒序——直觉上可以理解成"后进先出"：最后包上去的middleware，在进入时最晚生效、在退出时最早生效，类似装饰器套娃的调用顺序）</text>
+  <text x="80" y="932" font-size="10.5" class="soft" font-weight="700">这条链式连接本身也是靠`_add_middleware_edge`这个条件边实现的（源码没有完全展开每一步的jump_to细节，上面图里已经体现了它的核心行为：默认按链走，但能跳到loop_entry_node或exit_node）。</text>
+
+  <!-- bottom takeaway -->
+  <rect x="60" y="980" width="1180" height="90" rx="12" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.3" />
+  <text x="80" y="1008" font-size="12" font-weight="700">退化情况：一个middleware都不注册</text>
+  <text x="80" y="1032" font-size="10.5" class="soft">四个虚线框节点全部消失，`entry_node`/`loop_entry_node`退化成`"model"`，`loop_exit_node`也退化成`"model"`，`exit_node`退化成`END`——</text>
+  <text x="80" y="1052" font-size="10.5" class="soft">整张图坍缩回最简单的`model`↔`tools`两节点循环，跟`create_react_agent`原来的拓扑完全一样。</text>
+</svg>

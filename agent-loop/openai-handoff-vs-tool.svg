@@ -1,0 +1,188 @@
+<svg viewBox="0 0 1360 1620" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OpenAI Agents SDK Runner循环三分支流程图：最终输出、常规工具调用、Handoff转交。顶部Runner.run(starting_agent, input)启动，进入一个虚线大循环容器；循环容器内先有一个current_agent状态框（第一次迭代=starting_agent），箭头指向「调用LLM(current_agent, current_input)」，再指向一个判断菱形「LLM这一轮产出了什么」，从菱形分出三条分支。左边分支：产出文本且没有工具调用，判定为最终输出，绿色框标出循环在此结束，返回RunResult(final_output)，这是唯一离开循环容器的出口。中间分支：产出的是常规工具的tool_use，执行这个工具，把结果append成新的input，用虚线箭头绕回current_agent状态框，但current_agent框内容不变，还是原来那个agent，只是循环再走一遍。右边分支用红色高亮：产出的tool_use命中的名字是transfer_to_(agent_name)这种handoff专属工具名，Runner识别出这不是普通工具而是一次handoff请求，进入一个红色子流程框：构建HandoffInputData（包含input_history也就是Runner.run调用前的历史、pre_handoff_items、new_items），可选地经过input_filter或nest_handoff_history处理，然后current_agent状态框被替换成一个全新的agent（不同的instructions、tools、model），current_input也替换成处理后的历史（默认是完整历史，新agent能看到一切），同样用虚线箭头绕回current_agent状态框，但这次current_agent框的内容画成从旧agent图标划掉、换成新agent图标，直观表示「被替换」而不是「数据被追加」。循环容器外右侧标注：如果循环次数超过max_turns，抛出MaxTurnsExceeded异常。底部是一张三分支对比表格，四个维度分别是谁驱动下一轮、是否离开当前Runner循环、历史怎么处理、有没有自动返回路径；工具调用分支这几项分别是同一个current_agent、否仍在循环内、只追加tool_result、不适用因为没有离开；handoff分支分别是新替换进来的agent、否但身份已切换、默认整段透传给新agent也可以用input_filter过滤、没有自动返回路径除非新agent自己又配一条handoff指回去。最下方是一段结论文字，指出这个机制的本质是「同一个Runner循环内允许驱动身份中途切换且不可逆」，是后续学习Multi-Agent编排、子Agent生命周期时会反复用到的一个关键设计原型，跟「调用子agent当工具、拿到汇总结果后原agent继续」的模式是两种根本不同的协作范式。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --blue: #6E8299;
+      --blue-soft: #D8E0E6;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+        --blue: #8FA6BC;
+        --blue-soft: #33404A;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .blue-t { fill: var(--blue); }
+    .step { font-size: 12px; }
+    .note { font-size: 10px; }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+    <marker id="f3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-red)" />
+    </marker>
+    <marker id="f4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--blue)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1360" height="1620" fill="var(--bg)" />
+  <text x="30" y="32" font-size="16" font-weight="700">OpenAI Agents SDK：最终输出 / 工具调用 / Handoff转交 三分支</text>
+  <text x="30" y="52" font-size="10.5" class="faint">同一个Runner循环里，三种输出会走向完全不同的后续处理；重点看右边红色的handoff分支——它不是新开一个调用，是把"current_agent"这个状态变量整个换掉</text>
+
+  <!-- entry -->
+  <rect x="480" y="70" width="400" height="42" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="680" y="96" text-anchor="middle" font-size="12" font-weight="700" class="mono">Runner.run(starting_agent, input) 启动</text>
+
+  <line x1="680" y1="112" x2="680" y2="134" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+
+  <!-- loop container -->
+  <rect x="60" y="134" width="1240" height="900" rx="16" fill="none" stroke="var(--line)" stroke-width="1.6" stroke-dasharray="8 5" />
+  <text x="680" y="158" text-anchor="middle" font-size="12" font-weight="700" class="faint">循环，重复执行直到最终输出，或达到max_turns（超限抛MaxTurnsExceeded）</text>
+
+  <!-- current_agent state box -->
+  <rect x="530" y="176" width="300" height="56" rx="8" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="1.4" />
+  <text x="680" y="198" text-anchor="middle" font-size="11.5" font-weight="700" class="blue-t mono">current_agent（状态变量）</text>
+  <text x="680" y="216" text-anchor="middle" class="note blue-t">第一次迭代 = starting_agent</text>
+
+  <line x1="680" y1="232" x2="680" y2="254" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+
+  <rect x="480" y="254" width="400" height="42" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="680" y="280" text-anchor="middle" font-size="12" font-weight="700" class="mono">调用LLM(current_agent, current_input)</text>
+
+  <line x1="680" y1="296" x2="680" y2="318" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+
+  <rect x="560" y="318" width="240" height="50" rx="25" fill="var(--surface-2)" stroke="var(--line)" stroke-dasharray="4 3" />
+  <text x="680" y="348" text-anchor="middle" class="step" font-weight="700">这一轮产出了什么？</text>
+
+  <!-- three branch arrows -->
+  <line x1="600" y1="368" x2="230" y2="430" stroke="var(--sage)" stroke-width="1.6" marker-end="url(#f2)" />
+  <text x="380" y="390" text-anchor="middle" class="note sage-t" font-weight="700">文本输出 + 无工具调用</text>
+
+  <line x1="680" y1="368" x2="680" y2="430" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+  <text x="770" y="400" text-anchor="middle" class="note soft" font-weight="700">常规tool_use</text>
+
+  <line x1="760" y1="368" x2="1130" y2="430" stroke="var(--accent-red)" stroke-width="1.8" marker-end="url(#f3)" />
+  <text x="990" y="390" text-anchor="middle" class="note red" font-weight="700">tool_use命中 transfer_to_&lt;agent&gt;</text>
+
+  <!-- Branch A: final output (left) -->
+  <rect x="90" y="430" width="280" height="90" rx="10" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.5" />
+  <text x="230" y="454" text-anchor="middle" font-size="12" font-weight="700" class="sage-t">判定为"最终输出"</text>
+  <text x="230" y="474" text-anchor="middle" class="note sage-t">循环结束（唯一离开这个</text>
+  <text x="230" y="490" text-anchor="middle" class="note sage-t">循环容器的出口）</text>
+  <text x="230" y="508" text-anchor="middle" class="note sage-t mono" font-weight="700">返回 RunResult(final_output)</text>
+
+  <!-- Branch B: regular tool (middle) -->
+  <rect x="530" y="430" width="300" height="90" rx="10" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.5" />
+  <text x="680" y="454" text-anchor="middle" font-size="12" font-weight="700">执行这个常规工具</text>
+  <text x="680" y="474" text-anchor="middle" class="note soft">结果append成新的input</text>
+  <text x="680" y="492" text-anchor="middle" class="note soft" font-weight="700">current_agent保持不变</text>
+  <text x="680" y="508" text-anchor="middle" class="note soft">只是同一个agent再跑一轮</text>
+
+  <path d="M 830,475 C 900,475 900,204 830,204" fill="none" stroke="var(--line)" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#f1)" />
+
+  <!-- Branch C: handoff (right) -->
+  <rect x="960" y="430" width="340" height="230" rx="10" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-width="1.7" />
+  <text x="1130" y="454" text-anchor="middle" font-size="12" font-weight="700" class="red">Runner识别为一次handoff</text>
+  <text x="1130" y="470" text-anchor="middle" class="note red">（不当普通工具执行，不返回tool_result）</text>
+
+  <rect x="980" y="480" width="300" height="46" rx="6" fill="var(--surface-3)" stroke="var(--accent-red)" />
+  <text x="1130" y="500" text-anchor="middle" class="note red mono" font-weight="700">构建 HandoffInputData</text>
+  <text x="1130" y="516" text-anchor="middle" class="note red">input_history + pre_handoff_items + new_items</text>
+
+  <line x1="1130" y1="526" x2="1130" y2="540" stroke="var(--accent-red)" stroke-width="1.4" marker-end="url(#f3)" />
+
+  <rect x="980" y="540" width="300" height="36" rx="6" fill="var(--surface-3)" stroke="var(--accent-red)" />
+  <text x="1130" y="562" text-anchor="middle" class="note red">（可选）input_filter / nest_handoff_history</text>
+
+  <line x1="1130" y1="576" x2="1130" y2="590" stroke="var(--accent-red)" stroke-width="1.4" marker-end="url(#f3)" />
+
+  <rect x="980" y="590" width="300" height="58" rx="6" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-width="1.5" />
+  <text x="1130" y="610" text-anchor="middle" class="note red mono" font-weight="700">current_agent 被整体替换</text>
+  <text x="1130" y="626" text-anchor="middle" class="note red">新instructions/tools/model</text>
+  <text x="1130" y="642" text-anchor="middle" class="note red">input默认=完整历史，新agent全都看得到</text>
+
+  <path d="M 960,608 C 900,608 830,404 830,204" fill="none" stroke="var(--accent-red)" stroke-width="1.6" stroke-dasharray="3 3" marker-end="url(#f3)" />
+  <text x="885" y="330" text-anchor="middle" class="note red" transform="rotate(-90 885 330)">current_agent的内容被替换，不是数据追加</text>
+
+  <!-- current_agent swap visual -->
+  <rect x="1000" y="676" width="260" height="60" rx="8" fill="var(--surface-3)" stroke="var(--accent-red)" stroke-dasharray="4 3" />
+  <text x="1130" y="698" text-anchor="middle" class="note red">旧agent实例 <tspan text-decoration="line-through">Billing Agent</tspan></text>
+  <text x="1130" y="716" text-anchor="middle" class="note red" font-weight="700">→ 换成 Refund Agent</text>
+  <line x1="1130" y1="648" x2="1130" y2="676" stroke="var(--accent-red)" stroke-width="1.3" marker-end="url(#f3)" />
+
+  <!-- max_turns note -->
+  <rect x="90" y="740" width="1180" height="50" rx="8" fill="var(--surface-3)" stroke="var(--line)" stroke-dasharray="4 3" />
+  <text x="680" y="770" text-anchor="middle" class="note soft" font-weight="700">中间和右边两条分支循环次数累加，超过 max_turns 会抛出 MaxTurnsExceeded 异常（设 max_turns=None 禁用限制）</text>
+
+  <!-- comparison table -->
+  <rect x="90" y="850" width="1180" height="170" rx="10" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.3" />
+  <text x="110" y="874" font-size="12" font-weight="700">三分支对比</text>
+
+  <line x1="110" y1="884" x2="1250" y2="884" stroke="var(--line)" stroke-width="1" />
+  <text x="120" y="902" class="note faint" font-weight="700">维度</text>
+  <text x="400" y="902" class="note soft" font-weight="700">常规工具调用</text>
+  <text x="800" y="902" class="note red" font-weight="700">Handoff转交</text>
+
+  <line x1="110" y1="910" x2="1250" y2="910" stroke="var(--line)" stroke-width="0.7" stroke-dasharray="2 3" />
+  <text x="120" y="930" class="note faint">谁驱动下一轮</text>
+  <text x="400" y="930" class="note soft">同一个current_agent</text>
+  <text x="800" y="930" class="note red">被替换进来的新agent</text>
+
+  <line x1="110" y1="940" x2="1250" y2="940" stroke="var(--line)" stroke-width="0.7" stroke-dasharray="2 3" />
+  <text x="120" y="960" class="note faint">是否离开当前循环</text>
+  <text x="400" y="960" class="note soft">否，仍在同一个循环里</text>
+  <text x="800" y="960" class="note red">否，但驱动身份已经切换</text>
+
+  <line x1="110" y1="970" x2="1250" y2="970" stroke="var(--line)" stroke-width="0.7" stroke-dasharray="2 3" />
+  <text x="120" y="990" class="note faint">历史怎么处理</text>
+  <text x="400" y="990" class="note soft">只追加这次的tool_result</text>
+  <text x="800" y="990" class="note red">默认整段透传，可用input_filter过滤</text>
+
+  <line x1="110" y1="1000" x2="1250" y2="1000" stroke="var(--line)" stroke-width="0.7" stroke-dasharray="2 3" />
+  <text x="120" y="1010" class="note faint">有没有自动返回路径</text>
+  <text x="400" y="1010" class="note soft">不适用（没有离开）</text>
+  <text x="800" y="1010" class="note red" font-weight="700">没有——除非新agent自己又配一条handoff指回去</text>
+
+  <!-- bottom takeaway -->
+  <rect x="60" y="1050" width="1240" height="150" rx="12" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.2" />
+  <text x="80" y="1076" font-size="12.5" font-weight="700">这个机制的本质，值得记住带去后面学Multi-Agent编排/子Agent生命周期</text>
+  <text x="80" y="1100" font-size="10.5" class="soft">**同一个Runner循环内，允许驱动身份中途不可逆地切换**——handoff在协议层面只是模型调用了一个叫`transfer_to_&lt;agent&gt;`的普通工具，</text>
+  <text x="80" y="1120" font-size="10.5" class="soft">但Runner不把它的结果当tool_result喂回去，而是直接替换掉"current_agent"这个状态变量，整个循环从下一轮开始换了个驾驶员——没有嵌套调用，没有汇总结果返回，</text>
+  <text x="80" y="1140" font-size="10.5" class="soft">用户完全感知不到"被转接"这件事发生过。</text>
+  <text x="80" y="1166" font-size="10.5" class="sage-t" font-weight="700">这跟"调用子agent当工具"（Claude Code的Agent工具、OpenClaw的sessions_spawn、OpenAI自己的as_tool()）是两种根本不同的协作范式——</text>
+  <text x="80" y="1186" font-size="10.5" class="sage-t">后者是"派人干活、干完汇报、原agent继续主导"，前者是"把主导权整个让出去、不可逆、不保证还能拿回来"。</text>
+</svg>

@@ -1,5 +1,5 @@
 ## 目录
-- [1 Context Window是什么](#1-context-window是什么)
+- [1 Context Window是什么（Working Memory）](#1-context-window是什么working-memory)
   - [1.1 Context Window 中Token数量有上限](#11-context-window-中token数量有上限)
     - [1.1.1 模型一次"看得见"的token有总量上限，此上限在模型训练时就已经决定](#111-模型一次看得见的token有总量上限此上限在模型训练时就已经决定)
     - [1.1.2 硬件约束：算力和显存决定了新模型敢把原生上下文训多长](#112-硬件约束算力和显存决定了新模型敢把原生上下文训多长)
@@ -9,8 +9,8 @@
   - [2.2 信任边界：怎么让模型区分"指令"和"数据"](#22-信任边界怎么让模型区分指令和数据)
   - [2.3 上下文工程的四种手段：Write / Select / Compress / Isolate](#23-上下文工程的四种手段write--select--compress--isolate)
     - [2.3.1 Write：长期记忆 与 便签](#231-write长期记忆-与-便签)
-      - [长期记忆（跨会话）：谁在写、怎么写](#长期记忆跨会话谁在写怎么写)
-      - [便签（session内，框架自动持久化，不是agent的决定）](#便签session内框架自动持久化不是agent的决定)
+      - [长期记忆（跨会话）：谁在写、怎么写（Semantic Memory）](#长期记忆跨会话谁在写怎么写semantic-memory)
+      - [便签（session内，框架自动持久化，不是agent的决定）（Episodic Memory）](#便签session内框架自动持久化不是agent的决定episodic-memory)
     - [2.3.2 Select：Agent能读到哪些长期记忆和便签](#232-selectagent能读到哪些长期记忆和便签)
       - [长期记忆的读取](#长期记忆的读取)
       - [便签的读取](#便签的读取)
@@ -19,7 +19,7 @@
     - [2.3.3 Compress：窗口满了之后怎么办](#233-compress窗口满了之后怎么办)
     - [2.3.4 Isolate：子任务的过程要不要让主线程看到](#234-isolate子任务的过程要不要让主线程看到)
 
-## 1 Context Window是什么
+## 1 Context Window是什么（Working Memory）
 
 > **Context Window是模型单次推理时，能够纳入注意力计算范围的token总量上限——输入和输出共用同一个额度，不是两个独立空间；窗口之外的内容对模型不可见。**
 
@@ -185,7 +185,7 @@ LangChain原文把Write拆成两类：Scratchpads（便签）和Memories（长�
 
 **区分两者的关键就是"谁在做决定"**：长期记忆永远是agent自己通过tool call判断"这条该记了"；便签则是框架/SDK自动做的持久化，跟agent怎么想完全无关，行为上更接近"自动存盘"而不是"记忆"。
 
-##### 长期记忆（跨会话）：谁在写、怎么写
+##### 长期记忆（跨会话）：谁在写、怎么写（Semantic Memory）
 
 统一用同一套标签看这六个样本，规律比之前清楚很多——**"写不写"这个判断权，最终都落在某一次模型调用身上，没有一家是纯工程规则在写；区别只在于是"哪个模型、在什么时机被触发"**：
 
@@ -207,7 +207,7 @@ LangChain原文把Write拆成两类：Scratchpads（便签）和Memories（长�
 
 OpenViking的双通道本质上就是在同时买这两头的好处，这也是六个样本里唯一一个正面回应了这个权衡、而不是只选一边的设计。
 
-##### 便签（session内，框架自动持久化，不是agent的决定）
+##### 便签（session内，框架自动持久化，不是agent的决定）（Episodic Memory）
 
 便签要解决的问题本来就不需要"判断"：当前session内发生了什么，不存在"要不要保留"的选择，全部原样保留就是唯一正确答案。所以五家不约而同选择了自动化、不经过agent决策的实现方式。
 

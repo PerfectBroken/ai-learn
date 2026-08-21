@@ -20,10 +20,11 @@
 - [Permission 系统](mcp-protocol/MCPProtocol.md#5-trust--safety权限与同意机制)
 - [工具发现 / 注册](tool-discovery/ToolDiscovery.md)
 - [错误语义设计](error-semantics/ErrorSemantics.md)
+- [Skills](skills/Skills.md)（占位，待学，见文档内TODO）
 
 ### Layer 3 — Agent 架构
 
-- Turn Loop 设计
+- [Turn Loop 设计](agent-loop/TurnLoop.md)
 - 状态管理
 - 会话持久化
 - Multi-Agent 编排

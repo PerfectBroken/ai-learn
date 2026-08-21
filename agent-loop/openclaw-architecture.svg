@@ -1,0 +1,242 @@
+<svg viewBox="0 0 1440 1560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OpenClaw Agent模块架构关系图（已按源码核实修正结构，右侧上下文装配层与插件hooks区块已分层不再重叠）。顶部是入口层：Gateway RPC和CLI，往下连到agentCommand模块。agentCommand往下连到一个大的runEmbeddedAgent容器，这个容器内部从上到下依次是：排队与写入方声明子模块、model与auth profile解析子模块（before_model_resolve插件hook挂在这里，已按源码embedded-agent-runner/run/setup.ts核实，不是挂在agentCommand之前）、构建session子模块（workspace/skills/bootstrap三者从右上方上下文装配层汇入这里）、Prompt组装子模块（before_prompt_build和before_agent_reply两个hook挂在这里）、核心工具使用小循环（内含模型推理、流式输出、工具执行、压缩与重试四个互相循环的子模块，before/after_tool_call、tool_result_persist、before/after_compaction四个hook挂在这里）、Reply整形子模块，最后runEmbeddedAgent返回payload给agentCommand。左列是并发控制层，包含Session lane队列、Global lane队列、SQLite写入队列、Gateway状态目录锁、writer-claim写入方声明，这一列用点线箭头指向runEmbeddedAgent容器内的排队子模块，表示门控关系。右上方是上下文装配层，包含Workspace、Skills快照、Bootstrap上下文文件，用实线箭头汇入容器内的构建session子模块。右下方（在上下文装配层正下方、不再重叠）是插件hooks区块，精确标出六类插件hook各自挂在容器内哪个子模块上。agentCommand收到runEmbeddedAgent返回后做收尾：如果内嵌循环没自己发生命周期事件则兜底补发，agent_end hook在此触发，然后连到subscribeEmbeddedAgentSession桥接成lifecycle事件流。事件流再分叉连到两个下游：Gateway审计台账（仅元数据投影）和聊天渠道处理（delta到final）。图下方是持久化层：Session transcript数据库，左侧并发控制层的writer-claim用一条特殊标注的箭头连到这个transcript，表示每次写入都要核对声明是否仍然有效。图中一个缩小后紧贴agentCommand和runEmbeddedAgent容器本身的虚线红框，标注为超时体系覆盖范围，不再跨到右侧两个区块上。">
+  <style>
+    :root {
+      --bg: #F0EBE2;
+      --surface-2: #DCD2C0;
+      --surface-3: #E8E1D3;
+      --ink: #3B362E;
+      --ink-soft: #6E6656;
+      --ink-faint: #9A9080;
+      --line: #A99C82;
+      --accent-red: #AD6656;
+      --accent-red-soft: #E4D2CB;
+      --sage: #82896F;
+      --sage-soft: #DDDCC9;
+      --blue: #6E8299;
+      --blue-soft: #D8E0E6;
+      --plum: #8B7091;
+      --plum-soft: #E2D7E3;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #26221C;
+        --surface-2: #3C362B;
+        --surface-3: #322D24;
+        --ink: #EBE3D4;
+        --ink-soft: #B3A890;
+        --ink-faint: #7C7461;
+        --line: #6E6450;
+        --accent-red: #CB8875;
+        --accent-red-soft: #4A342E;
+        --sage: #98A17F;
+        --sage-soft: #3A3B2E;
+        --blue: #8FA6BC;
+        --blue-soft: #33404A;
+        --plum: #AD93AE;
+        --plum-soft: #3E3540;
+      }
+    }
+    text { font-family: var(--sans); fill: var(--ink); }
+    .mono { font-family: var(--mono); }
+    .soft { fill: var(--ink-soft); }
+    .faint { fill: var(--ink-faint); }
+    .red { fill: var(--accent-red); }
+    .sage-t { fill: var(--sage); }
+    .blue-t { fill: var(--blue); }
+    .plum-t { fill: var(--plum); }
+    .step { font-size: 12px; }
+    .note { font-size: 9.5px; }
+  </style>
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)" />
+    </marker>
+    <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--sage)" />
+    </marker>
+    <marker id="f4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--blue)" />
+    </marker>
+    <marker id="f5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--plum)" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1440" height="1560" fill="var(--bg)" />
+  <text x="30" y="32" font-size="16" font-weight="700">OpenClaw Agent 模块架构关系图（已按源码核实修正）</text>
+  <text x="30" y="52" font-size="10.5" class="faint">agentCommand只负责起止两端；中间全部装在runEmbeddedAgent一个容器里；右上＝上下文装配层，右下＝插件hooks（两者已分层，不再重叠）</text>
+
+  <!-- entry -->
+  <rect x="520" y="70" width="360" height="38" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="94" text-anchor="middle" font-size="12" font-weight="700">入口层：Gateway RPC / CLI</text>
+  <line x1="700" y1="108" x2="700" y2="128" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+
+  <rect x="510" y="128" width="380" height="40" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="153" text-anchor="middle" font-size="12" font-weight="700" class="mono">agentCommand（起）</text>
+
+  <line x1="700" y1="168" x2="700" y2="188" stroke="var(--line)" stroke-width="1.6" marker-end="url(#f1)" />
+
+  <!-- timeout outer red dashed frame: tightened to just wrap agentCommand + runEmbeddedAgent -->
+  <rect x="360" y="120" width="550" height="1000" rx="16" fill="none" stroke="var(--accent-red)" stroke-width="1.6" stroke-dasharray="8 5" />
+  <text x="635" y="142" text-anchor="middle" font-size="10.5" font-weight="700" class="red">超时体系覆盖范围（agent.wait / agent runtime / CLI后端监控 / Cron / 模型空闲 / Provider HTTP，六种叠加约束）</text>
+
+  <!-- CONCURRENCY column (left) -->
+  <rect x="30" y="200" width="280" height="360" rx="12" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="1.4" />
+  <text x="170" y="224" text-anchor="middle" font-size="12" font-weight="700" class="blue-t">并发控制层（门控）</text>
+
+  <rect x="50" y="240" width="240" height="38" rx="6" fill="var(--surface-3)" stroke="var(--blue)" />
+  <text x="170" y="263" text-anchor="middle" class="note blue-t mono">Session lane（会话通道）</text>
+
+  <rect x="50" y="288" width="240" height="38" rx="6" fill="var(--surface-3)" stroke="var(--blue)" />
+  <text x="170" y="311" text-anchor="middle" class="note blue-t mono">Global lane（全局通道，可选）</text>
+
+  <rect x="50" y="336" width="240" height="38" rx="6" fill="var(--surface-3)" stroke="var(--blue)" />
+  <text x="170" y="359" text-anchor="middle" class="note blue-t mono">SQLite 写入队列</text>
+
+  <rect x="50" y="384" width="240" height="38" rx="6" fill="var(--surface-3)" stroke="var(--blue)" />
+  <text x="170" y="407" text-anchor="middle" class="note blue-t mono">Gateway 状态目录锁</text>
+
+  <rect x="50" y="440" width="240" height="100" rx="6" fill="var(--accent-red-soft)" stroke="var(--accent-red)" stroke-width="1.3" />
+  <text x="170" y="460" text-anchor="middle" class="note red mono" font-weight="700">writer-claim</text>
+  <text x="170" y="476" text-anchor="middle" class="note red mono">(activeWriterRunId)</text>
+  <text x="170" y="494" text-anchor="middle" class="note red">每次transcript写入</text>
+  <text x="170" y="510" text-anchor="middle" class="note red">都要核对是否仍生效</text>
+  <text x="170" y="528" text-anchor="middle" class="note red">（超期运行无法提交脏数据）</text>
+
+  <line x1="310" y1="260" x2="380" y2="260" stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#f4)" />
+  <text x="345" y="252" text-anchor="middle" class="note blue-t">门控进入</text>
+
+  <!-- BIG runEmbeddedAgent container -->
+  <rect x="380" y="188" width="440" height="932" rx="14" fill="none" stroke="var(--accent-red)" stroke-width="1.7" />
+  <text x="600" y="212" text-anchor="middle" font-size="12.5" font-weight="700" class="red mono">runEmbeddedAgent（单次调用，内部串行完成全部子步骤）</text>
+
+  <rect x="410" y="228" width="380" height="46" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="255" text-anchor="middle" font-size="11.5" font-weight="700">排队 + 写入方声明</text>
+
+  <line x1="600" y1="274" x2="600" y2="292" stroke="var(--line)" stroke-width="1.3" marker-end="url(#f1)" />
+
+  <rect x="410" y="292" width="380" height="46" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="319" text-anchor="middle" font-size="11.5" font-weight="700">解析 model + auth profile</text>
+
+  <line x1="600" y1="338" x2="600" y2="356" stroke="var(--line)" stroke-width="1.3" marker-end="url(#f1)" />
+
+  <rect x="410" y="356" width="380" height="60" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="380" text-anchor="middle" font-size="11.5" font-weight="700">构建session</text>
+  <text x="600" y="398" text-anchor="middle" class="note soft">workspace / skills / bootstrap（右上汇入）</text>
+
+  <line x1="600" y1="416" x2="600" y2="434" stroke="var(--line)" stroke-width="1.3" marker-end="url(#f1)" />
+
+  <rect x="410" y="434" width="380" height="46" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="461" text-anchor="middle" font-size="11.5" font-weight="700">Prompt 组装</text>
+
+  <line x1="600" y1="480" x2="600" y2="498" stroke="var(--line)" stroke-width="1.3" marker-end="url(#f1)" />
+
+  <!-- inner loop cluster -->
+  <rect x="400" y="498" width="400" height="300" rx="10" fill="none" stroke="var(--line)" stroke-width="1.4" stroke-dasharray="5 4" />
+  <text x="600" y="520" text-anchor="middle" font-size="11" font-weight="700">核心工具使用小循环</text>
+
+  <rect x="420" y="534" width="170" height="50" rx="6" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="505" y="564" text-anchor="middle" class="note">模型推理</text>
+
+  <rect x="610" y="534" width="170" height="50" rx="6" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="695" y="564" text-anchor="middle" class="note">流式输出</text>
+
+  <rect x="420" y="600" width="170" height="50" rx="6" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="505" y="630" text-anchor="middle" class="note">工具执行</text>
+
+  <rect x="610" y="600" width="170" height="50" rx="6" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="695" y="630" text-anchor="middle" class="note">压缩与重试</text>
+
+  <line x1="590" y1="559" x2="610" y2="559" stroke="var(--line)" stroke-width="1.1" marker-end="url(#f1)" />
+  <line x1="695" y1="584" x2="695" y2="600" stroke="var(--line)" stroke-width="1.1" marker-end="url(#f1)" />
+  <line x1="610" y1="625" x2="590" y2="625" stroke="var(--line)" stroke-width="1.1" marker-end="url(#f1)" />
+  <line x1="505" y1="600" x2="505" y2="584" stroke="var(--line)" stroke-width="1.1" marker-end="url(#f1)" />
+  <text x="600" y="770" text-anchor="middle" class="note faint">四模块互相循环，直到没有更多工具调用</text>
+
+  <line x1="600" y1="798" x2="600" y2="816" stroke="var(--line)" stroke-width="1.3" marker-end="url(#f1)" />
+
+  <rect x="410" y="816" width="380" height="46" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="600" y="843" text-anchor="middle" font-size="11.5" font-weight="700">Reply 整形</text>
+
+  <line x1="600" y1="862" x2="600" y2="880" stroke="var(--line)" stroke-width="1.3" marker-end="url(#f1)" />
+  <text x="600" y="898" text-anchor="middle" class="note faint mono">返回 payload + usage → agentCommand</text>
+
+  <!-- CONTEXT ASSEMBLY column (top-right, above hooks, non-overlapping) -->
+  <rect x="930" y="188" width="480" height="176" rx="12" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="1170" y="212" text-anchor="middle" font-size="12" font-weight="700">上下文装配层</text>
+
+  <rect x="950" y="226" width="440" height="34" rx="6" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="1170" y="248" text-anchor="middle" class="note soft">Workspace（含沙箱变体）</text>
+
+  <rect x="950" y="268" width="440" height="34" rx="6" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="1170" y="290" text-anchor="middle" class="note soft">Skills 快照</text>
+
+  <rect x="950" y="310" width="440" height="34" rx="6" fill="var(--surface-3)" stroke="var(--line)" />
+  <text x="1170" y="332" text-anchor="middle" class="note soft">Bootstrap / 上下文文件</text>
+
+  <text x="1170" y="358" text-anchor="middle" class="note faint">三者共同汇入构建session步骤 ↓</text>
+  <line x1="930" y1="350" x2="800" y2="386" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+
+  <!-- HOOKS band (bottom-right, below context assembly, non-overlapping) -->
+  <rect x="930" y="384" width="480" height="530" rx="12" fill="var(--sage-soft)" stroke="var(--sage)" stroke-width="1.3" />
+  <text x="1170" y="408" text-anchor="middle" font-size="11.5" font-weight="700" class="sage-t">插件hooks（挂接点已按源码核实）</text>
+
+  <text x="948" y="434" class="note sage-t mono" font-weight="700">before_model_resolve</text>
+  <text x="948" y="450" class="note sage-t">源码：embedded-agent-runner/run/setup.ts</text>
+  <text x="948" y="464" class="note sage-t">"early so plugins can override provider/model</text>
+  <text x="948" y="478" class="note sage-t">before resolveModel()" —— 挂在解析model这一步</text>
+  <line x1="930" y1="450" x2="800" y2="315" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f2)" />
+
+  <text x="948" y="510" class="note sage-t mono" font-weight="700">before_prompt_build / before_agent_reply</text>
+  <text x="948" y="526" class="note sage-t">Prompt组装前后</text>
+  <line x1="930" y1="516" x2="800" y2="457" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f2)" />
+
+  <text x="948" y="558" class="note sage-t mono" font-weight="700">before/after_tool_call · tool_result_persist</text>
+  <text x="948" y="574" class="note sage-t mono" font-weight="700">before/after_compaction</text>
+  <text x="948" y="590" class="note sage-t">挂在小循环内部子动作上，粒度比外面细</text>
+  <line x1="930" y1="568" x2="800" y2="610" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f2)" />
+
+  <text x="948" y="622" class="note sage-t mono" font-weight="700">agent_end</text>
+  <text x="948" y="638" class="note sage-t">runEmbeddedAgent返回后，agentCommand收尾时</text>
+  <line x1="930" y1="628" x2="800" y2="890" stroke="var(--sage)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#f2)" />
+
+  <text x="948" y="674" class="note sage-t" font-weight="700">（内部Gateway hooks另一套，挂在agentCommand层）</text>
+  <text x="948" y="690" class="note sage-t mono">agent:bootstrap · /new /reset /stop 等命令hooks</text>
+
+  <line x1="700" y1="1120" x2="700" y2="1160" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+
+  <!-- agentCommand wrap-up -->
+  <rect x="510" y="1160" width="380" height="52" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="1182" text-anchor="middle" font-size="11.5" font-weight="700" class="mono">agentCommand（收尾）</text>
+  <text x="700" y="1200" text-anchor="middle" class="note soft">兜底补发lifecycle事件；触发agent_end</text>
+
+  <line x1="700" y1="1212" x2="700" y2="1232" stroke="var(--line)" stroke-width="1.5" marker-end="url(#f1)" />
+
+  <!-- OUTPUT layer -->
+  <rect x="480" y="1232" width="440" height="42" rx="7" fill="var(--surface-3)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="1258" text-anchor="middle" font-size="11.5" font-weight="700">事件流：lifecycle / assistant / tool</text>
+
+  <line x1="590" y1="1274" x2="290" y2="1310" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+  <line x1="810" y1="1274" x2="1030" y2="1310" stroke="var(--line)" stroke-width="1.4" marker-end="url(#f1)" />
+
+  <rect x="60" y="1310" width="360" height="56" rx="8" fill="var(--plum-soft)" stroke="var(--plum)" stroke-width="1.3" />
+  <text x="240" y="1332" text-anchor="middle" class="step plum-t" font-weight="700">Gateway审计台账</text>
+  <text x="240" y="1350" text-anchor="middle" class="note plum-t">仅元数据投影，不含prompt/结果原文</text>
+
+  <rect x="920" y="1310" width="360" height="56" rx="8" fill="var(--plum-soft)" stroke="var(--plum)" stroke-width="1.3" />
+  <text x="1100" y="1332" text-anchor="middle" class="step plum-t" font-weight="700">聊天渠道处理</text>
+  <text x="1100" y="1350" text-anchor="middle" class="note plum-t">delta缓冲 → 收尾成chat final</text>
+
+  <!-- PERSISTENCE -->
+  <rect x="480" y="1420" width="440" height="60" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-width="1.4" />
+  <text x="700" y="1446" text-anchor="middle" font-size="12" font-weight="700" class="mono">Session Transcript（SQLite持久化）</text>
+  <text x="700" y="1464" text-anchor="middle" class="note soft">构建session/工具执行两个子步骤都写入这里</text>
+
+  <line x1="170" y1="540" x2="170" y2="1450" stroke="var(--accent-red)" stroke-width="1.4" stroke-dasharray="4 4" />
+  <line x1="170" y1="1450" x2="480" y2="1450" stroke="var(--accent-red)" stroke-width="1.4" marker-end="url(#f5)" />
+  <text x="150" y="1000" text-anchor="middle" class="note red" transform="rotate(-90 150 1000)">writer-claim核对每次写入</text>
+
+  <line x1="600" y1="898" x2="600" y2="1450" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="2 3" />
+</svg>
