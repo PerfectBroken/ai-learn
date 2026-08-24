@@ -24,9 +24,8 @@
 
 ### Layer 3 — Agent 架构
 
-- [Turn Loop 设计](agent-loop/TurnLoop.md)
-- 状态管理
-- 会话持久化
+- [Turn Loop 设计](agent-loop/TurnLoop.md)（含"状态管理"相关概念，见文档内第3节——单独调研后判断这部分内容不足以撑起独立一章，并入了这里）
+- [会话持久化](session-persistence/SessionPersistence.md)
 - Multi-Agent 编排
 - 子 Agent 生命周期
 - 任务分解策略

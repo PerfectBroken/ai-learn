@@ -167,6 +167,20 @@ Skill可以放在四个层级（个人`~/.claude/skills/`、项目`.claude/skill
 | **加载机制** | 客户端调用`prompts/list`拿列表，`prompts/get`拿完整内容，没有"先加载一部分、按需加载全部"这种分级 | 渐进式披露：description常驻上下文，完整正文按需加载 |
 | **调用的语法保证** | 无直接可比——不涉及"模型自由选择" | `Skill`工具的`skill`参数是`"type": "string"`，不是`enum`——选中哪个skill完全靠模型语义判断，没有语法掩码（grammar masking）兜底，跟"选哪个工具"这一步（有解码约束保证）是不同可靠度的两件事 |
 
+### 3.1 Skill内置的`scripts/`脚本 vs Tool：功能重叠，但接口和成本模型完全不同
+
+`scripts/`目录里的脚本，能实现的功能理论上跟一个Tool没有本质区别（都是可执行代码）。但把两者叠在一起看，能发现两处真正的结构性差异，不只是"谁来做语义判断"这么简单：
+
+**① 调用信道不同——脚本从来不是`tools`数组里的一等公民，调用脚本本质上还是在调用`Bash`这个tool。** 模型读到`SKILL.md`正文里一句大白话指令（比如"运行`scripts/extract.py <file>`来完成X"），然后凭自己的判断把这条命令塞进**已经存在的`Bash`工具**的参数里。从`Bash`工具自己的schema角度看，这条命令跟任何一次普通的shell调用没有任何区别——脚本没有自己的名字、没有自己的参数schema，全靠模型现读现译成一条命令行。协议层面根本不存在"调用脚本"这个动作，存在的只是"调用Bash，参数恰好是个脚本命令"。
+
+**② 成本模型不同——这才是"为什么不干脆把所有脚本都做成Tool"的真正原因。** 官方架构文档（`platform.claude.com`《Agent Skills》，"Efficient script execution"节）原文：
+
+> When Claude runs `validate_form.py`, the script's code never loads into the context window. Only its output... consumes tokens, which makes scripts far more efficient than having Claude generate equivalent code on the fly.
+
+以及："No practical limit on bundled content: Files don't consume context until accessed... There's no context penalty for bundled content that isn't used."
+
+**Tool的定义（哪怕这一轮完全没用到）每次API请求都要整份序列化进`tools`数组，持续占token；脚本在没被用到时是零成本的**——只有真被某个skill激活、模型读到正文、决定要跑，才会付出"这条命令的执行输出"这一份token代价，脚本代码本身永远不进上下文。几十上百个专项脚本如果都注册成独立Tool，每次对话都要背上这些schema的固定token税，而绝大多数脚本在绝大多数对话里根本用不上——这是"要不要一直挂在`tools`数组里、持续付固定成本"和"绕一步Bash、平时零成本"之间的取舍，不是能力边界的问题。**Tool适合"随时可能用、值得付固定成本换直接可靠调用"的能力；Script适合"窄、专、大概率用不上"的能力。**
+
 ## 4 OpenClaw的实现对照（源码验证）
 
 来源：OpenClaw官方文档`docs/tools/skills.md`，关键机制额外用`gh search code`/`gh api`核实了源码（`src/skills/loading/workspace-skill-prompt.ts`、`skill-prompt-limits.ts`），不是纯读文档猜测。
