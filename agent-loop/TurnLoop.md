@@ -140,11 +140,15 @@ Anthropic/Copilot/OpenClaw三家的Loop描述里，一轮结束后只有两种�
 
 ![OpenAI Agents SDK Runner循环三分支流程图：Runner.run(starting_agent, input)启动后进入一个循环，current_agent状态变量第一次迭代等于starting_agent，调用LLM(current_agent, current_input)后判断这一轮产出了什么，分三条分支——左边文本输出且无工具调用判定为最终输出，循环结束返回RunResult，是唯一离开循环的出口；中间产出常规tool_use，执行工具、结果append进input、current_agent不变，绕回循环顶部；右边产出的tool_use命中transfer_to_<agent>这个handoff专属工具名，Runner识别为一次handoff，构建HandoffInputData（含input_history/pre_handoff_items/new_items）、可选经过input_filter或nest_handoff_history处理，然后current_agent状态框被整体替换成新agent、input默认变成完整历史，同样绕回循环顶部但驱动身份已经切换；循环外标注超过max_turns会抛MaxTurnsExceeded异常；底部对比表格从"谁驱动下一轮""是否离开当前循环""历史怎么处理""有没有自动返回路径"四个维度对比常规工具调用和handoff两条分支，结论是handoff没有自动返回路径，除非新agent自己又配一条handoff指回去](openai-handoff-vs-tool.svg)
 
-**这个设计跟"子agent当工具"是两种根本不同的协作范式，值得带去后面学Multi-Agent编排/子Agent生命周期时对比**：
+**这个设计跟"子agent当工具"是两种根本不同的协作范式**：
 
-- **子agent当工具**（Claude Code的`Agent`工具、OpenClaw的`sessions_spawn`、OpenAI自己的`as_tool()`）——派人干活、干完汇报（`tool_result`），**原agent继续主导**，是"打电话"。
+- **子agent当工具**（Claude Code的`Agent`工具、OpenClaw的`sessions_spawn`、OpenAI自己的`as_tool()`）——派人干活、干完汇报（`tool_result`），**原agent（manager）全程在场、继续主导**，是"打电话"。
 - **Handoff**——直接把主导权整个让出去，**没有自动返回路径**，是"把话筒递给下一个人，自己退场"，从协议/消息历史层面完全看不出中途换过人（新agent之后的每一句话都是正常的`assistant`轮次）。
 - 场景动机也不同：`handoffs.md`原文明确是给"客服分诊"场景准备的——一个triage agent判断问题类型后转交给billing/refund等专门agent，用户感觉不到"被转接"发生过，就像打客服电话被转接、但通话没断。这跟"编程助手派个子任务、拿结果继续干"的需求形状完全不一样。
+
+**官方给的"选哪个"决策依据，落到工程层面有一条容易被忽略的维度**：用Handoff是因为想让专家"直接回复、保持提示词聚焦、或者让handoff直接切换活跃指令，不需要manager再复述一遍结果"；用Agents as tools是因为想让"一个agent拥有最终答案、合并多个专家输出，**或者把guardrails统一收在一个地方执行**"——Agents as tools全程manager在场，审核/限流/内容过滤可以在manager这一层统一做；Handoff一旦转交主导权，guardrails要么跟着专门agent各自配一份，要么就管不到了。
+
+**这两种模式不是互斥的系统级选择，可以嵌套组合**：`multi_agent.md`原文明确说"A triage agent might hand off to a specialist, and that specialist can still call other agents as tools for narrow subtasks."——一个通过Handoff接过主导权的专家agent，自己还可以扮演"agents as tools"式的manager，去调用更窄范围的子agent当工具。实际系统设计里，"转交主导权"（用户感觉不到被转接）和"派活拿结果"（manager全程在场）这两层可以叠着用：顶层做分诊+转交，转交到的专家内部再用"打电话拿结果"的方式处理更细的子任务。
 
 ### 4.2 "子agent当工具"内部还有一个分歧：结果是同步塞回`tool_result`，还是异步等通知？
 

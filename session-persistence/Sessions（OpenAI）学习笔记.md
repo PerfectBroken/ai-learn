@@ -157,13 +157,15 @@ result = await Runner.run(agent, "Hello", session=session)
 await session.run_compaction({"force": True})  # 自己挑时机手动压缩（空闲时/每N轮/达到大小阈值等）
 ```
 
+**并发写入这一层，官方原文只在这个包装器内部做了有限保护，边界之外要开发者自己小心**：原文明确写了"The wrapper serializes calls to `add_items()`、`pop_item()`和`clear_session()` with the locked replacement and recovery phase"——也就是说压缩执行期间，这三个写操作会被串行化，不会跟"清空重写"这个动作打架。但原文紧接着划了一条边界："Run manual compaction between turns without concurrent wrapper mutations, and do not mutate the underlying session directly while compaction is running"——**只保护"通过这个包装器发起的调用"，不保护"绕过包装器直接改底层session"这种场景**，后者原文明确说是不安全的，要开发者自己避免。
+
 ### 其余几种实现的关键细节
 
 - **`AsyncSQLiteSession`**：需要`pip install aiosqlite`。
 - **`RedisSession`**：`RedisSession.from_url(...)`会自己创建并**拥有**Redis客户端，`close()`之后这个session就"终止"了，后续操作会抛`RuntimeError`（重复/并发调用`close()`是安全的）；如果应用已经自己管理Redis客户端，可以直接传`redis_client=...`构造，这种情况下`close()`是空操作，客户端归属权还在调用者手上。
 - **`SQLAlchemySession`**：`from_url(...)`或直接传现成的`engine`，`create_tables=True`自动建表。
 - **`DaprSession`**：同样有"owned client vs 外部传入client"的`close()`行为差异，支持`ttl=`自动过期、`consistency=DAPR_CONSISTENCY_STRONG`更强的读后写一致性保证。
-- **`MongoDBSession`**：`from_uri(...)`拥有并自动关闭`AsyncMongoClient`；用两个集合——`sessions_collection`（默认`agent_sessions`）和`messages_collection`（默认`agent_messages`）；每次非空`add_items()`调用写入一个**逻辑批处理文档**，用单调递增的`seq`排序。
+- **`MongoDBSession`**：`from_uri(...)`拥有并自动关闭`AsyncMongoClient`；用两个集合——`sessions_collection`（默认`agent_sessions`）和`messages_collection`（默认`agent_messages`）；每次非空`add_items()`调用写入一个**逻辑批处理文档**，用单调递增的`seq`排序——原文补充了一条原子性保证："A logical batch must fit within MongoDB's single-document size limit; an oversized batch fails atomically without storing a partial batch."，也就是一批写入要么整批成功、要么整批不落盘，不会出现"写了一半"的中间状态。
 - **`AdvancedSQLiteSession`**：多了**对话分支**能力——`await session.create_branch_from_turn(2)`，从第2轮直接分叉出一条新对话线，还有`store_run_usage()`做token用量追踪。**这是目前查到的、除LangGraph`copy_thread`接口之外，另一个真正跟"fork"相关的能力，而且这个是有具体实现落地的，不是只停留在接口层面。**
 - **`EncryptedSession`**：任意session实现的加密包装器，`encryption_key`+`ttl`，包一层就行：
 
