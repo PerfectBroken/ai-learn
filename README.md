@@ -27,8 +27,8 @@
 - [Turn Loop 设计](agent-loop/TurnLoop.md)（含"状态管理"相关概念，见文档内第3节——单独调研后判断这部分内容不足以撑起独立一章，并入了这里）
 - [会话持久化](session-persistence/SessionPersistence.md)
 - [Multi-Agent 编排](multi-agent-orchestration/MultiAgentOrchestration.md)
-- [子Agent终止条件](subagent-termination/SubagentTermination.md)
-- 任务分解策略
+  - [子Agent终止条件](subagent-termination/SubagentTermination.md)
+- [任务分解策略](task-decomposition/TaskDecomposition.md)
 
 ### Layer 4 — 可观测性
 
@@ -37,12 +37,11 @@
 - 结构化日志
 - Token 用量分析
 - 分布式追踪
+- Bug report机制
 
 ### Layer 5 — 工程化
 
-- Agent 测试策略
-- Parity / 快照测试
-- 安全设计
-- Prompt 注入防护
+- [Agent 测试策略](agent-testing-strategy/AgentTestingStrategy.md)（含Parity/快照测试——推导下来它是regression eval的一个具体子类型，不单独成章，内容并入"阶段三：跑评估、读结果"）
+- [安全设计](security-design/SecurityDesign.md)
 - [生产部署](production-deployment/ProductionDeployment.md)（目前只有从Multi-Agent编排一章顺带记的一条彩虹部署笔记，尚未正式开始学）
 - 故障恢复策略
